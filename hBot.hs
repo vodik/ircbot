@@ -38,26 +38,34 @@ run = do
     write "NICK" nick
     write "USER" (nick ++ " 0 * :tutorial bot")
     write "JOIN" chan
-    asks socket >>= listen
+    listen
 
-listen :: Handle -> Net ()
-listen h = forever $ do
-    s <- init `fmap` io (hGetLine h)
-    io $ putStrLn s
-    if ping s
-       then pong s
-       else eval $ clean s
+listen :: Net ()
+listen = do
+    h <- asks socket
+    forever $ do
+        s <- init `fmap` liftIO (hGetLine h)
+        liftIO $ putStrLn s
+        handled <- prot $ words s
+        if handled
+           then return ()
+           else eval (user s) (words $ clean s)
     where
         forever a = a >> forever a
         clean     = drop 1 . dropWhile (/= ':') . drop 1
-        ping x    = "PING :" `isPrefixOf` x
-        pong x    = write "PONG" (':' : drop 6 x)
+        user      = drop 1 . takeWhile (/= '!')
 
-eval :: String -> Net ()
-eval     "!uptime"             = uptime >>= privmsg
-eval     "!quit"               = write "QUIT" ":Exiting" >> io (exitWith ExitSuccess)
-eval x | "!id " `isPrefixOf` x = privmsg (drop 4 x)
-eval     _                     = return ()
+prot :: [String] -> Net Bool
+prot ("PING":xs)   = write "PONG" (unwords xs) >> return True
+prot _             = return False
+
+eval :: String -> [String] -> Net ()
+eval _ ("PING":xs)   = write "PONG" (unwords xs)
+eval _ ("!uptime":_) = uptime >>= privmsg
+eval _ ("!quit":_)   = write "QUIT" ":Exiting" >> liftIO (exitWith ExitSuccess)
+eval _ ("!id":msg)   = privmsg $ unwords msg
+eval u ("!ID":msg)   = privmsg $ u ++ ": " ++ unwords msg
+eval _ _             = return ()
 
 privmsg :: String -> Net ()
 privmsg s = write "PRIVMSG" (chan ++ " :" ++ s)
@@ -65,26 +73,26 @@ privmsg s = write "PRIVMSG" (chan ++ " :" ++ s)
 write :: String -> String -> Net ()
 write s t = do
     h <- asks socket
-    io $ hPrintf h "%s %s\r\n" s t
-    io $ printf    "> %s %s\n" s t
+    liftIO $ hPrintf h "%s %s\r\n" s t
+    liftIO $ printf    "> %s %s\n" s t
 
 uptime :: Net String
 uptime = do
-    now  <- io getClockTime
+    now  <- liftIO getClockTime
     zero <- asks startTime
     return . pretty $ diffClockTimes now zero
 
 pretty :: TimeDiff -> String
 pretty td = join . intersperse " " . filter (not . null) . map f $
-    [(years          ,"y") ,(months `mod` 12,"m")
-    ,(days   `mod` 28,"d") ,(hours  `mod` 24,"h")
-    ,(mins   `mod` 60,"m") ,(secs   `mod` 60,"s")]
+    [ (years         , "y"), (months `mod` 12, "m")
+    , (days  `mod` 28, "d"), (hours  `mod` 24, "h")
+    , (mins  `mod` 60, "m"), (secs   `mod` 60, "s") ]
     where
-        secs    = abs $ tdSec td  ; mins   = secs   `div` 60
-        hours   = mins   `div` 60 ; days   = hours  `div` 24
-        months  = days   `div` 28 ; years  = months `div` 12
+        secs   = abs $ tdSec td
+        mins   = secs   `div` 60
+        hours  = mins   `div` 60
+        days   = hours  `div` 24
+        months = days   `div` 28
+        years  = months `div` 12
         f (i,s) | i == 0    = []
                 | otherwise = show i ++ s
-
-io :: IO a -> Net a
-io = liftIO
