@@ -1,37 +1,71 @@
-import Data.List
-import Network
-import System.IO
-import System.Time
-import System.Exit
-import Control.Monad.Reader
+{-# LANGUAGE ExistentialQuantification, FlexibleInstances, GeneralizedNewtypeDeriving,
+             MultiParamTypeClasses, TypeSynonymInstances, CPP, DeriveDataTypeable #-}
+
+import Control.Applicative
 import Control.Exception
 import Control.Monad
+import Control.Monad.Reader
+import Control.Monad.Writer hiding (listen)
+import Data.List
+import Data.Monoid
+import Language.Haskell.HsColour.ANSI
+import Network
+import System.Exit
+import System.IO
+import System.Time
 import Text.Printf
-import Prelude hiding (catch)
 
 server = "irc.freenode.org"
 port   = 6667
 chan   = "#bots"
 nick   = "fbugsdf"
 
-type Net = ReaderT Bot IO
-data Bot = Bot { socket :: Handle, startTime :: ClockTime }
+newtype Net a = Net (ReaderT Bot IO a)
+    deriving (Functor, Monad, MonadIO, MonadReader Bot)
+
+data Bot = Bot { socket :: Handle, startTime :: !ClockTime }
+
+type Command = String
+
+newtype Processor a = Processor (WriterT Command Net a)
+    deriving (Functor, Monad, MonadIO, MonadWriter Command)
+
+instance Monoid a => Monoid (Net a) where
+    mempty  = return mempty
+    mappend = liftM2 mappend
+
+instance Monoid a => Monoid (Processor a) where
+    mempty  = return mempty
+    mappend = liftM2 mappend
+
+runNet :: Net a -> Bot -> IO a
+runNet (Net a) = runReaderT a
+
+liftNet :: Net a -> Processor a
+liftNet = Processor . lift
+
+-- runProcessor :: Processor a ->
+execProcessor :: Processor a -> Net Command
+execProcessor (Processor a) = execWriterT a
+
+io :: MonadIO m => IO a -> m a
+io = liftIO
 
 main :: IO ()
 main = bracket connect disconnect loop
   where
     disconnect = hClose . socket
-    loop       = runReaderT run
+    loop       = runNet run
 
 connect :: IO Bot
-connect = notify $ do
+connect = bracket_ start end $ do
     t <- getClockTime
     h <- connectTo server . PortNumber $ fromIntegral port
     hSetBuffering h NoBuffering
     return $ Bot h t
   where
-    notify = bracket_ (printf "Connecting to %s ..." server >> hFlush stdout)
-                      (putStrLn "done.")
+    start = printf "Connecting to %s ..." server >> hFlush stdout
+    end   = putStrLn "done."
 
 run :: Net ()
 run = do
@@ -40,15 +74,27 @@ run = do
     write "JOIN" chan
     listen
 
+withSocket :: (Handle -> Net a) -> Net a
+withSocket f = asks socket >>= f
+
+(<+>) :: Monoid m => m -> m -> m
+(<+>) = mappend
+
 listen :: Net ()
-listen = do
-    h <- asks socket
+listen = withSocket $ \h ->
     forever $ do
-        s <- init `fmap` liftIO (hGetLine h)
-        liftIO $ putStrLn s
+        s <- init <$> io (hGetLine h)
+        io . putStrLn $ withHL s
         handled <- prot $ words s
-        unless handled $ eval (user s) (words $ clean s)
+        unless handled $ do
+            let u   = user s
+                xs  = words $ clean s
+                cmd = (eval xs) <+> (ids u xs)
+            t <- execProcessor cmd
+            unless (null t) $ privmsg t
+            return ()
   where
+    withHL    = highlight [ Foreground Red ]
     forever a = a >> forever a
     clean     = drop 1 . dropWhile (/= ':') . drop 1
     user      = drop 1 . takeWhile (/= '!')
@@ -57,26 +103,29 @@ prot :: [String] -> Net Bool
 prot ("PING":xs) = write "PONG" (unwords xs) >> return True
 prot _           = return False
 
-eval :: String -> [String] -> Net ()
-eval _ ("PING":xs)   = write "PONG" (unwords xs)
-eval _ ("!uptime":_) = uptime >>= privmsg
-eval _ ("!quit":_)   = write "QUIT" ":Exiting" >> liftIO (exitWith ExitSuccess)
-eval _ ("!id":msg)   = privmsg $ unwords msg
-eval u ("!ID":msg)   = privmsg $ u ++ ": " ++ unwords msg
-eval _ _             = return ()
+eval :: [String] -> Processor ()
+eval ("!uptime":_) = liftNet uptime >>= tell
+eval ("!quit":_)   = liftNet $ write "QUIT" ":Exiting" >> io (exitWith ExitSuccess)
+eval _             = return ()
+
+ids :: String -> [String] -> Processor ()
+ids _ ("!id":msg)   = tell $ unwords msg
+ids u ("!ID":msg)   = tell $ u ++ ": " ++ unwords msg
+ids _ _             = return ()
 
 privmsg :: String -> Net ()
 privmsg s = write "PRIVMSG" (chan ++ " :" ++ s)
 
 write :: String -> String -> Net ()
-write s t = do
-    h <- asks socket
-    liftIO $ hPrintf h "%s %s\r\n" s t
-    liftIO $ printf    "> %s %s\n" s t
+write s t = withSocket $ \h -> do
+    io $ hPrintf h "%s %s\r\n" s t
+    io $ printf    (withHL "> %s %s\n") s t
+  where
+    withHL = highlight [ Foreground Green ]
 
 uptime :: Net String
 uptime = do
-    now  <- liftIO getClockTime
+    now  <- io getClockTime
     zero <- asks startTime
     return . pretty $ diffClockTimes now zero
 
