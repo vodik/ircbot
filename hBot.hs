@@ -89,7 +89,7 @@ listen = withSocket $ \h ->
         unless handled $ do
             let u   = user s
                 xs  = words $ clean s
-                cmd = (eval xs) <+> (ids u xs)
+                cmd = eval xs <+> ifUser "vodik" u $ ids u xs
             t <- execProcessor cmd
             unless (null t) $ privmsg t
             return ()
@@ -108,10 +108,13 @@ eval ("!uptime":_) = liftNet uptime >>= tell
 eval ("!quit":_)   = liftNet $ write "QUIT" ":Exiting" >> io (exitWith ExitSuccess)
 eval _             = return ()
 
+ifUser :: String -> String -> Processor () -> Processor ()
+ifUser x u = when (x == u)
+
 ids :: String -> [String] -> Processor ()
-ids _ ("!id":msg)   = tell $ unwords msg
-ids u ("!ID":msg)   = tell $ u ++ ": " ++ unwords msg
-ids _ _             = return ()
+ids _ ("!id":msg) = tell $ unwords msg
+ids u ("!ID":msg) = tell $ u ++ ": " ++ unwords msg
+ids _ _           = return ()
 
 privmsg :: String -> Net ()
 privmsg s = write "PRIVMSG" (chan ++ " :" ++ s)
