@@ -29,7 +29,9 @@ data Bot = Bot
     { socket    :: Handle
     , startTime :: !ClockTime
     , ops       :: [String]
-    , chan      :: String }
+    , chan      :: String
+    , proc      :: Message -> Processor ()
+    }
 
 newtype Processor a = Processor (WriterT [Message] Net a)
     deriving (Functor, Monad, MonadIO, MonadReader Bot, MonadWriter [Message])
@@ -42,18 +44,18 @@ instance Monoid a => Monoid (Processor a) where
     mempty  = return mempty
     mappend = liftM2 mappend
 
-hbot :: String -> Int -> String -> IO ()
-hbot server port nick = bracket (connect server port) disconnect loop
+hbot :: String -> Int -> String -> (Message -> Processor ()) -> IO ()
+hbot server port nick p = bracket (connect server port p) disconnect loop
   where
     disconnect = hClose . socket
     loop       = runNet $ run nick "#bots"
 
-connect :: String -> Int -> IO Bot
-connect server port = bracket_ start end $ do
+connect :: String -> Int -> (Message -> Processor ()) -> IO Bot
+connect server port p = bracket_ start end $ do
     t <- getClockTime
     h <- connectTo server . PortNumber $ fromIntegral port
     hSetBuffering h NoBuffering
-    return $ Bot h t ["vodik"] "#bots"
+    return $ Bot h t ["vodik"] "#bots" p
   where
     start = printf "Connecting to %s ..." server >> hFlush stdout
     end   = putStrLn "done."
@@ -68,13 +70,11 @@ run n c = do
     write $ joinChan c
     listen
 
-myCmd msg@(Message p _ xs) = ifNotProt msg . ifUser p $ mconcat
-    [ eval (tail xs)
-    , ids p (words. head $ tail xs)
-    ]
+myCmd msg@(Message p _ _) proc = ifNotProt msg . ifUser p $ proc msg
 
 listen :: Net ()
-listen = withSocket $ \h ->
+listen = withSocket $ \h -> do
+    proc <- asks proc
     forever $ do
         s <- io (hGetLine h)
         m <- io (decode (s ++ "\n"))
@@ -82,9 +82,8 @@ listen = withSocket $ \h ->
             Nothing -> io . putStrLn . withHL2 $ init s
             Just msg -> do
                 io . putStrLn . withHL1 $ init s
-                t <- execProcessor $ myCmd msg
+                t <- execProcessor $ myCmd msg proc
                 mapM_ write t
-                return ()
   where
     withHL1   = highlight [ Foreground Blue ]
     withHL2   = highlight [ Foreground Red ]
@@ -118,19 +117,9 @@ prot :: Message -> Processor Bool
 prot msg@(Message _ "PING" xs) = send (pong msg) >> return True
 prot _                         = return False
 
-eval :: [String] -> Processor ()
-eval ("!uptime":_) = liftNet uptime >>= \x -> send $ privmsg "#bots" x
-eval ("!quit":_)   = liftNet . exit $ Just "!quit"
-eval _             = return ()
-
 ifUser :: Maybe Prefix -> Processor () -> Processor ()
 ifUser (Just (Nick u _ _)) f = asks ops >>= \o -> when (u `elem` o) f
 ifUser _                   _ = return ()
-
-ids :: Maybe Prefix -> [String] -> Processor ()
-ids _                   ("!id":msg) = send . privmsg "#bots" $ unwords msg
-ids (Just (Nick u _ _)) ("!ID":msg) = send . privmsg "#bots" $ u ++ ": " ++ unwords msg
-ids _                   _           = return ()
 
 -- privmsg' :: String -> Net ()
 -- privmsg' s = do
@@ -154,24 +143,3 @@ write t = withSocket $ \h -> do
     io $ printf    (withHL "> %s\n") msg
   where
     withHL = highlight [ Foreground Green ]
-
-uptime :: Net String
-uptime = do
-    now  <- io getClockTime
-    zero <- asks startTime
-    return . pretty $ diffClockTimes now zero
-
-pretty :: TimeDiff -> String
-pretty td = join . intersperse " " . filter (not . null) . fmap f $
-    [ (years         , "y"), (months `mod` 12, "m")
-    , (days  `mod` 28, "d"), (hours  `mod` 24, "h")
-    , (mins  `mod` 60, "m"), (secs   `mod` 60, "s") ]
-  where
-    secs   = abs $ tdSec td
-    mins   = secs   `div` 60
-    hours  = mins   `div` 60
-    days   = hours  `div` 24
-    months = days   `div` 28
-    years  = months `div` 12
-    f (i,s) | i == 0    = []
-            | otherwise = show i ++ s
