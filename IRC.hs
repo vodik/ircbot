@@ -23,7 +23,7 @@ import IRC.Commands
 import IRC.Parser
 
 newtype Net a = Net (ReaderT Bot IO a)
-    deriving (Functor, Monad, MonadIO, MonadReader Bot)
+    deriving (Functor, Applicative, Monad, MonadIO, MonadReader Bot)
 
 type ManagedMessage = Message -> Processor ()
 
@@ -64,9 +64,6 @@ connect server port p = bracket_ start end $ do
 
 run :: String -> String -> Net ()
 run n c = do
-    -- write "NICK" nick
-    -- write "USER" (nick ++ " 0 * :tutorial bot")
-    -- write "JOIN" chan
     write $ nick n
     write $ user n "0" "*" "tutorial bot"
     write $ joinChan c
@@ -122,18 +119,6 @@ prot _                         = return False
 ifUser :: Maybe Prefix -> Processor () -> Processor ()
 ifUser (Just (Nick u _ _)) f = asks ops >>= \o -> when (u `elem` o) f
 ifUser _                   _ = return ()
-
--- privmsg' :: String -> Net ()
--- privmsg' s = do
---     chan <- asks chan
---     write "PRIVMSG" (chan ++ " :" ++ s)
-
--- write :: String -> String -> Net ()
--- write s t = withSocket $ \h -> do
---     io $ hPrintf h "%s %s\r\n" s t
---     io $ printf    (withHL "> %s %s\n") s t
---   where
---     withHL = highlight [ Foreground Green ]
 
 exit :: Maybe String -> Net ()
 exit msg = write (quit msg) >> io (exitWith ExitSuccess)

@@ -30,9 +30,7 @@ ids (Just (Nick u _ _)) ("!ID":msg) = send . privmsg "#bots" $ u ++ ": " ++ unwo
 ids _                   _           = return ()
 
 uptime :: Net String
-uptime = do
-    now <- io getClockTime
-    pretty . diffClockTimes now <$> asks startTime
+uptime = pretty <$> (diffClockTimes <$> io getClockTime <*> asks startTime)
 
 pretty :: TimeDiff -> String
 pretty td = join . intersperse " " . filter (not . null) . fmap f $
@@ -46,5 +44,5 @@ pretty td = join . intersperse " " . filter (not . null) . fmap f $
     days   = hours  `div` 24
     months = days   `div` 28
     years  = months `div` 12
-    f (i,s) | i == 0    = []
-            | otherwise = show i ++ s
+    f (i, s) | i == 0    = []
+             | otherwise = show i ++ s
