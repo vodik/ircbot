@@ -8,9 +8,6 @@ server = "irc.freenode.org"
 port   = 6667
 nick   = "fbugsdf"
 
-myProc msg@(Message p _ xs) = mconcat
-    [ eval $ tail xs
-    , ids p $ words . head $ tail xs
-    ]
+myProc msg@(Message p _ xs) = ifPrivMsg msg $ mconcat [ eval , ids ]
 
 main = hbot server port nick myProc
