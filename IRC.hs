@@ -68,13 +68,11 @@ listen = withSocket $ \h ->
         m <- io (decode (s ++ "\n"))
         case m of
             Nothing  -> io . putStrLn . withHL2 $ init s
-            Just msg@(Message p _ _) -> do
+            Just msg@(Message p _ xs) -> do
                 io . putStrLn . withHL1 $ init s
                 handled <- prot msg
                 unless handled $ do
-                    let u   = user s
-                        xs  = words $ clean s
-                        cmd = eval xs <+> ifUser "vodik" p (ids u xs)
+                    let cmd = ifUser "vodik" p (eval (tail xs) <+> ids p (words . head $ tail xs))
                     t <- execProcessor cmd
                     unless (null t) $ privmsg t
                     return ()
@@ -82,8 +80,6 @@ listen = withSocket $ \h ->
     withHL1   = highlight [ Foreground Blue ]
     withHL2   = highlight [ Foreground Red ]
     forever a = a >> forever a
-    clean     = drop 1 . dropWhile (/= ':') . drop 1
-    user      = drop 1 . takeWhile (/= '!')
 
 runNet :: Net a -> Bot -> IO a
 runNet (Net a) = runReaderT a
@@ -110,17 +106,17 @@ prot _                     = return False
 
 eval :: [String] -> Processor ()
 eval ("!uptime":_) = liftNet uptime >>= tell
-eval ("!quit":_)   = liftNet $ write "QUIT" ":Exiting" >> io (exitWith ExitSuccess)
-eval _             = return ()
+eval ("!quit":_) = liftNet $ write "QUIT" ":Exiting" >> io (exitWith ExitSuccess)
+eval _           = return ()
 
 ifUser :: String -> Maybe Prefix -> Processor () -> Processor ()
 ifUser x (Just (Nick u _ _)) f = when (x == u) f
-ifUser _ _ _ = return ()
+ifUser _ _                   _ = return ()
 
-ids :: String -> [String] -> Processor ()
-ids _ ("!id":msg) = tell $ unwords msg
-ids u ("!ID":msg) = tell $ u ++ ": " ++ unwords msg
-ids _ _           = return ()
+ids :: Maybe Prefix -> [String] -> Processor ()
+ids _                   ("!id":msg) = tell $ unwords msg
+ids (Just (Nick u _ _)) ("!ID":msg) = tell $ u ++ ": " ++ unwords msg
+ids _                   _           = return ()
 
 privmsg :: String -> Net ()
 privmsg s = do

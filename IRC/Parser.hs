@@ -43,7 +43,6 @@ decode s = case parse message "" s of
         return Nothing
     Right msg -> return $ Just msg
 
-
 -- | The deprecated version of decode
 parseMessage = decode
 
