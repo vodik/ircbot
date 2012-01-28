@@ -77,16 +77,18 @@ addChan c = write (joinChan c) >> modify (\s -> s { chan = c : chan s })
 
 myCmd msg@(Message p _ _) proc = ifNotProt msg . ifUser p $ proc msg
 
-run :: Net ()
-run = withSocket $ \h -> do
+start :: Net ()
+start = do
     n <- gets nick'
     c <- gets chan
-    proc <- asks proc
-
     write $ nick n
     write $ user n "0" "*" "tutorial bot"
     forM_ c $ write . joinChan
 
+run :: Net ()
+run = withSocket $ \h -> do
+    start
+    proc <- asks proc
     forever $ do
         s <- io (hGetLine h)
         m <- io (decode (s ++ "\n"))
