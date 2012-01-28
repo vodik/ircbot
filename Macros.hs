@@ -19,21 +19,23 @@ import IRC
 import IRC.Base
 import IRC.Commands
 
-ifPrivMsg :: Message -> (String -> String -> [String] -> Processor ()) -> Processor ()
-ifPrivMsg (Message (Just (Nick u _ _)) "PRIVMSG" [c,xs]) f = f u c (words xs)
+ifPrivMsg :: Message -> (String -> [String] -> Processor (Maybe String)) -> Processor ()
+ifPrivMsg (Message (Just (Nick u _ _)) "PRIVMSG" [c,xs]) f = asks nick' >>= \n -> do
+    msg <- f u $ words xs
+    case msg of
+        Just m  -> send $ privmsg (if c == n then u else c) m
+        Nothing -> return ()
 ifPrivMsg _ _ = return ()
 
-eval :: String -> String -> [String] -> Processor ()
-eval u c ("!uptime":_) = liftNet uptime >>= \x -> send $ privmsg (ch u c) x
-eval _ c ("!quit":_)   = liftNet . exit $ Just "!quit"
-eval _ c _             = return ()
+eval :: String -> [String] -> Processor (Maybe String)
+eval _ ("!uptime":_) = Just <$> liftNet uptime
+eval _ ("!quit":_)   = liftNet (exit $ Just "Goodbye World") >> return Nothing
+eval _ _             = return Nothing
 
-ids :: String -> String -> [String] -> Processor ()
-ids u c ("!id":msg) = send . privmsg (ch u c) $ unwords msg
-ids u c ("!ID":msg) = send . privmsg (ch u c) $ u ++ ": " ++ unwords msg
-ids _ c _           = return ()
-
-ch u c = if c == "fbugsdf" then u else c
+ids :: String -> [String] -> Processor (Maybe String)
+ids _ ("!id":msg) = return . Just $ unwords msg
+ids u ("!ID":msg) = return . Just $ u ++ ": " ++ unwords msg
+ids _ _           = return Nothing
 
 uptime :: Net String
 uptime = pretty <$> (diffClockTimes <$> io getClockTime <*> asks startTime)

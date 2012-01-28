@@ -6,7 +6,7 @@ import Macros
 
 server = "irc.freenode.org"
 port   = 6667
-nick   = "fbugsdf"
+nick   = "netopir"
 
 myProc msg@(Message p _ xs) = ifPrivMsg msg $ mconcat [ eval , ids ]
 

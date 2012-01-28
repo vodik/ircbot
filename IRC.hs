@@ -31,6 +31,7 @@ data Bot = Bot
     { socket    :: Handle
     , startTime :: !ClockTime
     , ops       :: [String]
+    , nick'     :: String
     , chan      :: String
     , proc      :: ManagedMessage
     }
@@ -47,17 +48,17 @@ instance Monoid a => Monoid (Processor a) where
     mappend = liftM2 mappend
 
 hbot :: String -> Int -> String -> ManagedMessage -> IO ()
-hbot server port nick p = bracket (connect server port p) disconnect loop
+hbot server port nick p = bracket (connect server port nick p) disconnect loop
   where
     disconnect = hClose . socket
     loop       = runNet $ run nick "#bots"
 
-connect :: String -> Int -> ManagedMessage -> IO Bot
-connect server port p = bracket_ start end $ do
+connect :: String -> Int -> String -> ManagedMessage -> IO Bot
+connect server port n p = bracket_ start end $ do
     t <- getClockTime
     h <- connectTo server . PortNumber $ fromIntegral port
     hSetBuffering h NoBuffering
-    return $ Bot h t ["vodik"] "#bots" p
+    return $ Bot h t ["vodik"] n "#bots" p
   where
     start = printf "Connecting to %s ..." server >> hFlush stdout
     end   = putStrLn "done."
