@@ -18,9 +18,9 @@ import System.IO
 import System.Time
 import Text.Printf
 
+import IRC.Base
+import IRC.Commands
 import IRC.Parser
-
-type Command = String
 
 newtype Net a = Net (ReaderT Bot IO a)
     deriving (Functor, Monad, MonadIO, MonadReader Bot)
@@ -31,8 +31,8 @@ data Bot = Bot
     , ops       :: [String]
     , chan      :: String }
 
-newtype Processor a = Processor (WriterT Command Net a)
-    deriving (Functor, Monad, MonadIO, MonadReader Bot, MonadWriter Command)
+newtype Processor a = Processor (WriterT [Message] Net a)
+    deriving (Functor, Monad, MonadIO, MonadReader Bot, MonadWriter [Message])
 
 instance Monoid a => Monoid (Net a) where
     mempty  = return mempty
@@ -74,12 +74,10 @@ listen = withSocket $ \h ->
             Nothing -> io . putStrLn . withHL2 $ init s
             Just msg@(Message p _ xs) -> do
                 io . putStrLn . withHL1 $ init s
-                handled <- prot msg
-                unless handled $ do
-                    let cmd = ifUser p (eval (tail xs) <+> ids p (words . head $ tail xs))
-                    t <- execProcessor cmd
-                    unless (null t) $ privmsg t
-                    return ()
+                let cmd = ifNotProt msg $ ifUser p (eval (tail xs) <+> ids p (words . head $ tail xs))
+                t <- execProcessor cmd
+                mapM_ (write' . encode) t
+                return ()
   where
     withHL1   = highlight [ Foreground Blue ]
     withHL2   = highlight [ Foreground Red ]
@@ -91,8 +89,7 @@ runNet (Net a) = runReaderT a
 liftNet :: Net a -> Processor a
 liftNet = Processor . lift
 
--- runProcessor :: Processor a ->
-execProcessor :: Processor a -> Net Command
+execProcessor :: Processor a -> Net [Message]
 execProcessor (Processor a) = execWriterT a
 
 io :: MonadIO m => IO a -> m a
@@ -104,26 +101,29 @@ withSocket f = asks socket >>= f
 (<+>) :: Monoid m => m -> m -> m
 (<+>) = mappend
 
-prot :: Message -> Net Bool
-prot (Message _ "PING" xs) = write "PONG" (unwords xs) >> return True
-prot _                     = return False
+ifNotProt :: Message -> Processor () -> Processor ()
+ifNotProt msg f = prot msg >>= \b -> unless b f
+
+prot :: Message -> Processor Bool
+prot msg@(Message _ "PING" xs) = tell [ pong msg ] >> return True
+prot _                         = return False
 
 eval :: [String] -> Processor ()
-eval ("!uptime":_) = liftNet uptime >>= tell
-eval ("!quit":_) = liftNet $ write "QUIT" ":Exiting" >> io (exitWith ExitSuccess)
-eval _           = return ()
+eval ("!uptime":_) = liftNet uptime >>= \x -> tell [ privmsg "#bots" x ]
+eval ("!quit":_)   = liftNet $ write "QUIT" ":Exiting" >> io (exitWith ExitSuccess)
+eval _             = return ()
 
 ifUser :: Maybe Prefix -> Processor () -> Processor ()
 ifUser (Just (Nick u _ _)) f = asks ops >>= \o -> when (u `elem` o) f
 ifUser _                   _ = return ()
 
 ids :: Maybe Prefix -> [String] -> Processor ()
-ids _                   ("!id":msg) = tell $ unwords msg
-ids (Just (Nick u _ _)) ("!ID":msg) = tell $ u ++ ": " ++ unwords msg
+ids _                   ("!id":msg) = tell [ privmsg "#bots" $ unwords msg ]
+ids (Just (Nick u _ _)) ("!ID":msg) = tell [ privmsg "#bots" $ u ++ ": " ++ unwords msg ]
 ids _                   _           = return ()
 
-privmsg :: String -> Net ()
-privmsg s = do
+privmsg' :: String -> Net ()
+privmsg' s = do
     chan <- asks chan
     write "PRIVMSG" (chan ++ " :" ++ s)
 
@@ -131,6 +131,13 @@ write :: String -> String -> Net ()
 write s t = withSocket $ \h -> do
     io $ hPrintf h "%s %s\r\n" s t
     io $ printf    (withHL "> %s %s\n") s t
+  where
+    withHL = highlight [ Foreground Green ]
+
+write' :: String -> Net ()
+write' t = withSocket $ \h -> do
+    io $ hPrintf h "%s\r\n" t
+    io $ printf    (withHL "> %s\n") t
   where
     withHL = highlight [ Foreground Green ]
 

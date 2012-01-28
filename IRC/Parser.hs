@@ -9,24 +9,7 @@ import Text.Parsec.Combinator
 import Text.Parsec.Prim
 import Language.Haskell.HsColour.ANSI
 
--- data Message = Message
---     { prefix  :: Maybe String
---     , cmds :: String
---     , args    :: [String]
---     } deriving (Eq, Ord, Show)
-
-type Parameter  = String
-type ServerName = String
-type UserName   = String
-type RealName   = String
-type Command2   = String
-
-data Message = Message (Maybe Prefix) Command2 [Parameter]
-    deriving (Show,Read,Eq)
-
-data Prefix = Server ServerName
-            | Nick String (Maybe UserName) (Maybe ServerName)
-    deriving (Show,Read,Eq)
+import IRC.Base
 
 -- XXX: Shouldn't be in IO Monad
 decode :: String -> IO (Maybe Message)
@@ -49,12 +32,12 @@ prefix :: (Monad m) => ParsecT String u m Prefix
 prefix = char ':' *> (try nickPrefix <|> serverPrefix)
 
 serverPrefix :: (Monad m) => ParsecT String u m Prefix
-serverPrefix = fmap Server $ takeUntil " "
+serverPrefix = Server <$> takeUntil " "
 
 nickPrefix :: (Monad m) => ParsecT String u m Prefix
 nickPrefix = do
     n <- takeUntil " .!@\r\n"
-    p <- option False (char '.' *> return True)
+    p <- option False $ char '.' *> return True
     when p $ fail ""
     u <- optionMaybe $ char '!' *> takeUntil " @\r\n"
     s <- optionMaybe $ char '@' *> takeUntil " \r\n"
