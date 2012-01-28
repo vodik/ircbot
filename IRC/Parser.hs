@@ -44,11 +44,7 @@ nickPrefix = do
     return $ Nick n u s
 
 command :: (Monad m) => ParsecT String u m String
-command = many1 upper
-      <|> do x <- digit
-             y <- digit
-             z <- digit
-             return [ x, y, z ]
+command = many1 upper <|> count 3 digit
 
 parameter :: (Monad m) => ParsecT String u m String
 parameter = (char ':' *> takeUntil "\r\n") <|> takeUntil " \r\n"
