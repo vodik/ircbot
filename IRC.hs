@@ -55,11 +55,11 @@ hbot :: String -> Int -> String -> [String] -> ManagedMessage -> IO ()
 hbot server port nick chans p = bracket (connect server port p) disconnect loop
   where
     disconnect = hClose . socket
-    loop a     = runNet a (startState nick) (run nick chans) >> return ()
+    loop a     = runNet a (startState nick chans) run >> return ()
 
-startState nick = BotState
+startState nick chans = BotState
     { nick' = nick
-    , chan  = []
+    , chan  = chans
     }
 
 connect :: String -> Int -> ManagedMessage -> IO Bot
@@ -75,18 +75,18 @@ connect server port p = bracket_ start end $ do
 addChan :: String -> Net ()
 addChan c = write (joinChan c) >> modify (\s -> s { chan = c : chan s })
 
-run :: String -> [String] -> Net ()
-run n c = do
-    write $ nick n
-    write $ user n "0" "*" "tutorial bot"
-    forM_ c addChan
-    listen
-
 myCmd msg@(Message p _ _) proc = ifNotProt msg . ifUser p $ proc msg
 
-listen :: Net ()
-listen = withSocket $ \h -> do
+run :: Net ()
+run = withSocket $ \h -> do
+    n <- gets nick'
+    c <- gets chan
     proc <- asks proc
+
+    write $ nick n
+    write $ user n "0" "*" "tutorial bot"
+    forM_ c $ write . joinChan
+
     forever $ do
         s <- io (hGetLine h)
         m <- io (decode (s ++ "\n"))
