@@ -59,10 +59,13 @@ connect server port = bracket_ start end $ do
     end   = putStrLn "done."
 
 run :: String -> String -> Net ()
-run nick chan = do
-    write "NICK" nick
-    write "USER" (nick ++ " 0 * :tutorial bot")
-    write "JOIN" chan
+run n c = do
+    -- write "NICK" nick
+    -- write "USER" (nick ++ " 0 * :tutorial bot")
+    -- write "JOIN" chan
+    write $ nick n
+    write $ user n "0" "*" "tutorial bot"
+    write $ joinChan c
     listen
 
 listen :: Net ()
@@ -76,7 +79,7 @@ listen = withSocket $ \h ->
                 io . putStrLn . withHL1 $ init s
                 let cmd = ifNotProt msg $ ifUser p (eval (tail xs) <+> ids p (words . head $ tail xs))
                 t <- execProcessor cmd
-                mapM_ (write' . encode) t
+                mapM_ write t
                 return ()
   where
     withHL1   = highlight [ Foreground Blue ]
@@ -104,13 +107,16 @@ withSocket f = asks socket >>= f
 ifNotProt :: Message -> Processor () -> Processor ()
 ifNotProt msg f = prot msg >>= \b -> unless b f
 
+send :: Message -> Processor ()
+send = tell . return
+
 prot :: Message -> Processor Bool
-prot msg@(Message _ "PING" xs) = tell [ pong msg ] >> return True
+prot msg@(Message _ "PING" xs) = send (pong msg) >> return True
 prot _                         = return False
 
 eval :: [String] -> Processor ()
-eval ("!uptime":_) = liftNet uptime >>= \x -> tell [ privmsg "#bots" x ]
-eval ("!quit":_)   = liftNet $ write "QUIT" ":Exiting" >> io (exitWith ExitSuccess)
+eval ("!uptime":_) = liftNet uptime >>= \x -> send $ privmsg "#bots" x
+eval ("!quit":_)   = liftNet . exit $ Just "!quit"
 eval _             = return ()
 
 ifUser :: Maybe Prefix -> Processor () -> Processor ()
@@ -118,26 +124,30 @@ ifUser (Just (Nick u _ _)) f = asks ops >>= \o -> when (u `elem` o) f
 ifUser _                   _ = return ()
 
 ids :: Maybe Prefix -> [String] -> Processor ()
-ids _                   ("!id":msg) = tell [ privmsg "#bots" $ unwords msg ]
-ids (Just (Nick u _ _)) ("!ID":msg) = tell [ privmsg "#bots" $ u ++ ": " ++ unwords msg ]
+ids _                   ("!id":msg) = send . privmsg "#bots" $ unwords msg
+ids (Just (Nick u _ _)) ("!ID":msg) = send . privmsg "#bots" $ u ++ ": " ++ unwords msg
 ids _                   _           = return ()
 
-privmsg' :: String -> Net ()
-privmsg' s = do
-    chan <- asks chan
-    write "PRIVMSG" (chan ++ " :" ++ s)
+-- privmsg' :: String -> Net ()
+-- privmsg' s = do
+--     chan <- asks chan
+--     write "PRIVMSG" (chan ++ " :" ++ s)
 
-write :: String -> String -> Net ()
-write s t = withSocket $ \h -> do
-    io $ hPrintf h "%s %s\r\n" s t
-    io $ printf    (withHL "> %s %s\n") s t
-  where
-    withHL = highlight [ Foreground Green ]
+-- write :: String -> String -> Net ()
+-- write s t = withSocket $ \h -> do
+--     io $ hPrintf h "%s %s\r\n" s t
+--     io $ printf    (withHL "> %s %s\n") s t
+--   where
+--     withHL = highlight [ Foreground Green ]
 
-write' :: String -> Net ()
-write' t = withSocket $ \h -> do
-    io $ hPrintf h "%s\r\n" t
-    io $ printf    (withHL "> %s\n") t
+exit :: Maybe String -> Net ()
+exit msg = write (quit msg) >> io (exitWith ExitSuccess)
+
+write :: Message -> Net ()
+write t = withSocket $ \h -> do
+    let msg = encode t
+    io $ hPrintf h "%s\r\n" msg
+    io $ printf    (withHL "> %s\n") msg
   where
     withHL = highlight [ Foreground Green ]
 
@@ -148,7 +158,7 @@ uptime = do
     return . pretty $ diffClockTimes now zero
 
 pretty :: TimeDiff -> String
-pretty td = join . intersperse " " . filter (not . null) . map f $
+pretty td = join . intersperse " " . filter (not . null) . fmap f $
     [ (years         , "y"), (months `mod` 12, "m")
     , (days  `mod` 28, "d"), (hours  `mod` 24, "h")
     , (mins  `mod` 60, "m"), (secs   `mod` 60, "s") ]

@@ -11,7 +11,7 @@ mkMessage = Message Nothing
 pong :: Message -> Message
 pong (Message _ "PING" h) = mkMessage "PONG" h
 
-nick:: UserName -> Message
+nick :: UserName -> Message
 nick u = mkMessage "NICK" [u]
 
 user :: UserName -> ServerName -> ServerName -> RealName -> Message
