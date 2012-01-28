@@ -9,8 +9,8 @@ port   = 6667
 nick   = "fbugsdf"
 
 myProc msg@(Message p _ xs) = mconcat
-    [ eval (tail xs)
-    , ids p (words. head $ tail xs)
+    [ eval $ tail xs
+    , ids p $ words . head $ tail xs
     ]
 
 main = hbot server port nick myProc

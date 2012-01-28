@@ -25,12 +25,14 @@ import IRC.Parser
 newtype Net a = Net (ReaderT Bot IO a)
     deriving (Functor, Monad, MonadIO, MonadReader Bot)
 
+type ManagedMessage = Message -> Processor ()
+
 data Bot = Bot
     { socket    :: Handle
     , startTime :: !ClockTime
     , ops       :: [String]
     , chan      :: String
-    , proc      :: Message -> Processor ()
+    , proc      :: ManagedMessage
     }
 
 newtype Processor a = Processor (WriterT [Message] Net a)
@@ -44,13 +46,13 @@ instance Monoid a => Monoid (Processor a) where
     mempty  = return mempty
     mappend = liftM2 mappend
 
-hbot :: String -> Int -> String -> (Message -> Processor ()) -> IO ()
+hbot :: String -> Int -> String -> ManagedMessage -> IO ()
 hbot server port nick p = bracket (connect server port p) disconnect loop
   where
     disconnect = hClose . socket
     loop       = runNet $ run nick "#bots"
 
-connect :: String -> Int -> (Message -> Processor ()) -> IO Bot
+connect :: String -> Int -> ManagedMessage -> IO Bot
 connect server port p = bracket_ start end $ do
     t <- getClockTime
     h <- connectTo server . PortNumber $ fromIntegral port
