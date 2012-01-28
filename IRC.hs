@@ -68,6 +68,11 @@ run n c = do
     write $ joinChan c
     listen
 
+myCmd msg@(Message p _ xs) = ifNotProt msg . ifUser p $ mconcat
+    [ eval (tail xs)
+    , ids p (words. head $ tail xs)
+    ]
+
 listen :: Net ()
 listen = withSocket $ \h ->
     forever $ do
@@ -75,10 +80,9 @@ listen = withSocket $ \h ->
         m <- io (decode (s ++ "\n"))
         case m of
             Nothing -> io . putStrLn . withHL2 $ init s
-            Just msg@(Message p _ xs) -> do
+            Just msg -> do
                 io . putStrLn . withHL1 $ init s
-                let cmd = ifNotProt msg $ ifUser p (eval (tail xs) <+> ids p (words . head $ tail xs))
-                t <- execProcessor cmd
+                t <- execProcessor $ myCmd msg
                 mapM_ write t
                 return ()
   where
