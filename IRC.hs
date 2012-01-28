@@ -25,10 +25,14 @@ type Command = String
 newtype Net a = Net (ReaderT Bot IO a)
     deriving (Functor, Monad, MonadIO, MonadReader Bot)
 
-data Bot = Bot { socket :: Handle, startTime :: !ClockTime, chan :: String }
+data Bot = Bot
+    { socket    :: Handle
+    , startTime :: !ClockTime
+    , ops       :: [String]
+    , chan      :: String }
 
 newtype Processor a = Processor (WriterT Command Net a)
-    deriving (Functor, Monad, MonadIO, MonadWriter Command)
+    deriving (Functor, Monad, MonadIO, MonadReader Bot, MonadWriter Command)
 
 instance Monoid a => Monoid (Net a) where
     mempty  = return mempty
@@ -49,7 +53,7 @@ connect server port = bracket_ start end $ do
     t <- getClockTime
     h <- connectTo server . PortNumber $ fromIntegral port
     hSetBuffering h NoBuffering
-    return $ Bot h t "#bots"
+    return $ Bot h t ["vodik"] "#bots"
   where
     start = printf "Connecting to %s ..." server >> hFlush stdout
     end   = putStrLn "done."
@@ -67,12 +71,12 @@ listen = withSocket $ \h ->
         s <- io (hGetLine h)
         m <- io (decode (s ++ "\n"))
         case m of
-            Nothing  -> io . putStrLn . withHL2 $ init s
+            Nothing -> io . putStrLn . withHL2 $ init s
             Just msg@(Message p _ xs) -> do
                 io . putStrLn . withHL1 $ init s
                 handled <- prot msg
                 unless handled $ do
-                    let cmd = ifUser "vodik" p (eval (tail xs) <+> ids p (words . head $ tail xs))
+                    let cmd = ifUser p (eval (tail xs) <+> ids p (words . head $ tail xs))
                     t <- execProcessor cmd
                     unless (null t) $ privmsg t
                     return ()
@@ -109,9 +113,9 @@ eval ("!uptime":_) = liftNet uptime >>= tell
 eval ("!quit":_) = liftNet $ write "QUIT" ":Exiting" >> io (exitWith ExitSuccess)
 eval _           = return ()
 
-ifUser :: String -> Maybe Prefix -> Processor () -> Processor ()
-ifUser x (Just (Nick u _ _)) f = when (x == u) f
-ifUser _ _                   _ = return ()
+ifUser :: Maybe Prefix -> Processor () -> Processor ()
+ifUser (Just (Nick u _ _)) f = asks ops >>= \o -> when (u `elem` o) f
+ifUser _                   _ = return ()
 
 ids :: Maybe Prefix -> [String] -> Processor ()
 ids _                   ("!id":msg) = tell $ unwords msg
