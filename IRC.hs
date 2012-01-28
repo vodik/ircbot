@@ -32,12 +32,12 @@ data Bot = Bot
     { socket    :: Handle
     , startTime :: !ClockTime
     , ops       :: [String]
-    , chan      :: String
     , proc      :: ManagedMessage
     }
 
 data BotState = BotState
     { nick' :: String
+    , chan  :: [String]
     }
 
 newtype Processor a = Processor (WriterT [Message] Net a)
@@ -51,14 +51,15 @@ instance Monoid a => Monoid (Processor a) where
     mempty  = return mempty
     mappend = liftM2 mappend
 
-hbot :: String -> Int -> String -> ManagedMessage -> IO ()
-hbot server port nick p = bracket (connect server port p) disconnect loop
+hbot :: String -> Int -> String -> [String] -> ManagedMessage -> IO ()
+hbot server port nick chans p = bracket (connect server port p) disconnect loop
   where
     disconnect = hClose . socket
-    loop a     = runNet a (startState nick) (run nick "#bots") >> return ()
+    loop a     = runNet a (startState nick) (run nick chans) >> return ()
 
 startState nick = BotState
     { nick' = nick
+    , chan  = []
     }
 
 connect :: String -> Int -> ManagedMessage -> IO Bot
@@ -66,16 +67,19 @@ connect server port p = bracket_ start end $ do
     t <- getClockTime
     h <- connectTo server . PortNumber $ fromIntegral port
     hSetBuffering h NoBuffering
-    return $ Bot h t ["vodik"] "#bots" p
+    return $ Bot h t ["vodik"] p
   where
     start = printf "Connecting to %s ..." server >> hFlush stdout
     end   = putStrLn "done."
 
-run :: String -> String -> Net ()
+addChan :: String -> Net ()
+addChan c = write (joinChan c) >> modify (\s -> s { chan = c : chan s })
+
+run :: String -> [String] -> Net ()
 run n c = do
     write $ nick n
     write $ user n "0" "*" "tutorial bot"
-    write $ joinChan c
+    forM_ c addChan
     listen
 
 myCmd msg@(Message p _ _) proc = ifNotProt msg . ifUser p $ proc msg

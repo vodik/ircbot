@@ -7,7 +7,8 @@ import Macros
 server = "irc.freenode.org"
 port   = 6667
 nick   = "netopir"
+chans  = [ "#bots", "#derpgmzlj" ]
 
-myProc msg@(Message p _ xs) = ifPrivMsg msg $ mconcat [ eval , ids ]
+myProc msg = ifPrivMsg msg $ mconcat [ eval , ids ]
 
-main = hbot server port nick myProc
+main = hbot server port nick chans myProc
