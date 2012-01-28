@@ -8,6 +8,7 @@ import Control.Exception
 import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.Writer hiding (listen)
+import Control.Monad.State
 import Data.List
 import Data.Maybe
 import Data.Monoid
@@ -22,8 +23,8 @@ import IRC.Base
 import IRC.Commands
 import IRC.Parser
 
-newtype Net a = Net (ReaderT Bot IO a)
-    deriving (Functor, Applicative, Monad, MonadIO, MonadReader Bot)
+newtype Net a = Net (ReaderT Bot (StateT BotState IO) a)
+    deriving (Functor, Applicative, Monad, MonadIO, MonadReader Bot, MonadState BotState)
 
 type ManagedMessage = Message -> Processor ()
 
@@ -31,13 +32,16 @@ data Bot = Bot
     { socket    :: Handle
     , startTime :: !ClockTime
     , ops       :: [String]
-    , nick'     :: String
     , chan      :: String
     , proc      :: ManagedMessage
     }
 
+data BotState = BotState
+    { nick' :: String
+    }
+
 newtype Processor a = Processor (WriterT [Message] Net a)
-    deriving (Functor, Monad, MonadIO, MonadReader Bot, MonadWriter [Message])
+    deriving (Functor, Monad, MonadIO, MonadReader Bot, MonadWriter [Message], MonadState BotState)
 
 instance Monoid a => Monoid (Net a) where
     mempty  = return mempty
@@ -48,17 +52,21 @@ instance Monoid a => Monoid (Processor a) where
     mappend = liftM2 mappend
 
 hbot :: String -> Int -> String -> ManagedMessage -> IO ()
-hbot server port nick p = bracket (connect server port nick p) disconnect loop
+hbot server port nick p = bracket (connect server port p) disconnect loop
   where
     disconnect = hClose . socket
-    loop       = runNet $ run nick "#bots"
+    loop a     = runNet a (startState nick) (run nick "#bots") >> return ()
 
-connect :: String -> Int -> String -> ManagedMessage -> IO Bot
-connect server port n p = bracket_ start end $ do
+startState nick = BotState
+    { nick' = nick
+    }
+
+connect :: String -> Int -> ManagedMessage -> IO Bot
+connect server port p = bracket_ start end $ do
     t <- getClockTime
     h <- connectTo server . PortNumber $ fromIntegral port
     hSetBuffering h NoBuffering
-    return $ Bot h t ["vodik"] n "#bots" p
+    return $ Bot h t ["vodik"] "#bots" p
   where
     start = printf "Connecting to %s ..." server >> hFlush stdout
     end   = putStrLn "done."
@@ -89,8 +97,8 @@ listen = withSocket $ \h -> do
     withHL2   = highlight [ Foreground Red ]
     forever a = a >> forever a
 
-runNet :: Net a -> Bot -> IO a
-runNet (Net a) = runReaderT a
+runNet :: Bot -> BotState -> Net a -> IO (a, BotState)
+runNet b st (Net a) = runStateT (runReaderT a b) st
 
 liftNet :: Net a -> Processor a
 liftNet = Processor . lift

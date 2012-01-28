@@ -4,6 +4,7 @@ import Control.Applicative
 import Control.Exception
 import Control.Monad
 import Control.Monad.Reader
+import Control.Monad.State
 import Control.Monad.Writer hiding (listen)
 import Data.List
 import Data.Maybe
@@ -20,7 +21,7 @@ import IRC.Base
 import IRC.Commands
 
 ifPrivMsg :: Message -> (String -> [String] -> Processor (Maybe String)) -> Processor ()
-ifPrivMsg (Message (Just (Nick u _ _)) "PRIVMSG" [c,xs]) f = asks nick' >>= \n -> do
+ifPrivMsg (Message (Just (Nick u _ _)) "PRIVMSG" [c,xs]) f = gets nick' >>= \n -> do
     msg <- f u $ words xs
     case msg of
         Just m  -> send $ privmsg (if c == n then u else c) m
@@ -29,6 +30,7 @@ ifPrivMsg _ _ = return ()
 
 eval :: String -> [String] -> Processor (Maybe String)
 eval _ ("!uptime":_) = Just <$> liftNet uptime
+eval _ ("!nick":n:_) = liftNet (write $ nick n) >> modify (\s -> s { nick' = n }) >> return Nothing
 eval _ ("!quit":_)   = liftNet (exit $ Just "Goodbye World") >> return Nothing
 eval _ _             = return Nothing
 
