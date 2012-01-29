@@ -47,7 +47,8 @@ channel :: String -> String -> String -> String
 channel c u n = if c == n then u else c
 
 ifPrivMsg :: Message -> (String -> String -> [String] -> Processor (Maybe String)) -> Processor ()
-ifPrivMsg (Message (Just (Nick u _ _)) "PRIVMSG" [c,xs]) f = gets nick' >>= \n ->
+ifPrivMsg (Message (Just (Nick u _ _)) "PRIVMSG" [c,xs]) f =
+    gets nick' >>= \n ->
     case isCommand n xs of
         Nothing        -> return ()
         Just (cmd,arg) -> f u cmd arg >>= respond (channel c u n)
