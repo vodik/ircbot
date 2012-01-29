@@ -54,17 +54,6 @@ ifPrivMsg (Message (Just (Nick u _ _)) "PRIVMSG" [c,xs]) f =
         Just (cmd,arg) -> f u cmd arg >>= respond (channel c u n)
 ifPrivMsg _ _ = return ()
 
-eval :: String -> String -> [String] -> Processor (Maybe String)
-eval _ "uptime" _   = Just <$> liftNet uptime
-eval _ "nick"   [n] = liftNet (write $ nick n) >> modify (\s -> s { nick' = n }) >> return Nothing
-eval _ "quit"   _   = liftNet (exit $ Just "Goodbye World") >> return Nothing
-eval _ _        _   = return Nothing
-
-ids :: String -> String -> [String] -> Processor (Maybe String)
-ids _ "id" msg = return . Just $ unwords msg
-ids u "ID" msg = return . Just $ u ++ ": " ++ unwords msg
-ids _ _    _   = return Nothing
-
 uptime :: Net String
 uptime = pretty <$> (diffClockTimes <$> io getClockTime <*> asks startTime)
 

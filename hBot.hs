@@ -1,14 +1,28 @@
 import Data.Monoid
 
+import Control.Applicative
+import Control.Monad.State
+
 import IRC
 import IRC.Base
+import IRC.Commands
 import Macros
 
-server = "irc.freenode.org"
-port   = 6667
-nick   = "netopir"
-chans  = [ "#bots", "#derpgmzlj" ]
+myServer   = "irc.freenode.org"
+myPort     = 6667
+myNick     = "netopir"
+myChans    = [ "#bots", "#derpgmzlj" ]
+myProc msg = ifPrivMsg msg $ mconcat [ eval, ids ]
 
-myProc msg = ifPrivMsg msg $ mconcat [ eval , ids ]
+eval :: String -> String -> [String] -> Processor (Maybe String)
+eval _ "uptime" _   = Just <$> liftNet uptime
+eval _ "nick"   [n] = liftNet (write $ nick n) >> modify (\s -> s { nick' = n }) >> return Nothing
+eval _ "quit"   _   = liftNet (exit $ Just "Goodbye World") >> return Nothing
+eval _ _        _   = return Nothing
 
-main = hbot server port nick chans myProc
+ids :: String -> String -> [String] -> Processor (Maybe String)
+ids _ "id" msg = return . Just $ unwords msg
+ids u "ID" msg = return . Just $ u ++ ": " ++ unwords msg
+ids _ _    _   = return Nothing
+
+main = hbot myServer myPort myNick myChans myProc
