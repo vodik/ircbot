@@ -32,7 +32,7 @@ direct n = try (string n *> string ": ")
 
 command' :: (Monad m) => String -> ParsecT String u m (String, [String])
 command' n = do
-    c   <- direct n <|> string "!" *> many letter
+    c   <- (direct n <|> string "!") *> many letter
     arg <- optionMaybe $ char ' ' *> many letter `sepEndBy1` char ' '
     return (c, fromMaybe [] arg)
 
