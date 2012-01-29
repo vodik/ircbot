@@ -27,14 +27,18 @@ import IRC.Commands
 tokenize :: (Monad m) => ParsecT String u m a -> ParsecT String u m a
 tokenize p = p >>= \x -> spaces *> return x
 
-direct :: (Monad m) => String -> ParsecT String u m String
-direct n = try (string n *> string ": ")
+direct :: (Monad m) => String -> ParsecT String u m Bool
+direct n = try (string n *> oneOf ":," *> spaces *> return True)
+
+bang :: (Monad m) => ParsecT String u m Bool
+bang = char '!' *> return True
 
 command' :: (Monad m) => String -> ParsecT String u m (String, [String])
 command' n = do
-    c   <- (direct n <|> string "!") *> many letter
-    arg <- optionMaybe $ char ' ' *> many letter `sepEndBy1` char ' '
-    return (c, fromMaybe [] arg)
+    (direct n <|> bang) >>= \p -> unless p $ fail ""
+    cmd <- many $ noneOf " "
+    arg <- optionMaybe $ char ' ' *> many (noneOf " ") `sepEndBy1` char ' '
+    return (cmd, fromMaybe [] arg)
 
 command :: String -> String -> Maybe (String, [String])
 command n = either (const Nothing) Just . parse (command' n) ""

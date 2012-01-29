@@ -2,6 +2,7 @@ import Data.Monoid
 
 import Control.Applicative
 import Control.Monad.State
+import Data.List
 
 import IRC
 import IRC.Base
@@ -21,8 +22,9 @@ eval _ "quit"   _   = liftNet (exit $ Just "Goodbye World") >> return Nothing
 eval _ _        _   = return Nothing
 
 ids :: String -> String -> [String] -> Processor (Maybe String)
-ids _ "id" msg = return . Just $ unwords msg
-ids u "ID" msg = return . Just $ u ++ ": " ++ unwords msg
-ids _ _    _   = return Nothing
+ids _ "id"  msg = return . Just $ unwords msg
+ids _ "id2" msg = return . Just $ show msg
+ids u "ID"  msg = return . Just $ u ++ ": " ++ unwords msg
+ids _ _     _   = return Nothing
 
 main = hbot myServer myPort myNick myChans myProc
