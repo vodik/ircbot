@@ -30,14 +30,14 @@ tokenize p = p >>= \x -> spaces *> return x
 direct :: (Monad m) => String -> ParsecT String u m String
 direct n = try (string n *> string ": ")
 
-command :: (Monad m) => String -> ParsecT String u m (String, [String])
-command n = do
+command' :: (Monad m) => String -> ParsecT String u m (String, [String])
+command' n = do
     c   <- direct n <|> string "!" *> many letter
     arg <- optionMaybe $ char ' ' *> many letter `sepEndBy1` char ' '
     return (c, fromMaybe [] arg)
 
-isCommand :: String -> String -> Maybe (String, [String])
-isCommand n = either (const Nothing) Just . parse (command n) ""
+command :: String -> String -> Maybe (String, [String])
+command n = either (const Nothing) Just . parse (command' n) ""
 
 respond :: String -> Maybe String -> Processor ()
 respond c (Just m) = send $ privmsg c m
@@ -49,7 +49,7 @@ channel c u n = if c == n then u else c
 ifPrivMsg :: Message -> (String -> String -> [String] -> Processor (Maybe String)) -> Processor ()
 ifPrivMsg (Message (Just (Nick u _ _)) "PRIVMSG" [c,xs]) f =
     gets nick' >>= \n ->
-    case isCommand n xs of
+    case command n xs of
         Nothing        -> return ()
         Just (cmd,arg) -> f u cmd arg >>= respond (channel c u n)
 ifPrivMsg _ _ = return ()
