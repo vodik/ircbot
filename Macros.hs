@@ -27,33 +27,30 @@ import IRC.Commands
 tokenize :: (Monad m) => ParsecT String u m a -> ParsecT String u m a
 tokenize p = p >>= \x -> spaces *> return x
 
+direct :: (Monad m) => String -> ParsecT String u m String
+direct n = try (string n *> string ": ")
+
 command :: (Monad m) => String -> ParsecT String u m (String, [String])
 command n = do
-    cmd <- optionMaybe $ (try (string n *> string ": ") <|> string "!") *> many letter
-    case cmd of
-        Nothing -> fail ""
-        Just c  -> do
-            arg <- optionMaybe $ char ' ' *> many letter `sepEndBy1` char ' '
-            return (c, fromMaybe [] arg)
+    c   <- direct n <|> string "!" *> many letter
+    arg <- optionMaybe $ char ' ' *> many letter `sepEndBy1` char ' '
+    return (c, fromMaybe [] arg)
 
-parseMsg :: String -> String -> IO (Maybe (String, [String]))
-parseMsg n s = case parse (command n) "" s of
-    Left err -> do
-        putStrLn . highlight [ Foreground Yellow ] $ "FAILED: " ++ show err
-        return Nothing
-    Right msg -> return $ Just msg
+isCommand :: String -> String -> Maybe (String, [String])
+isCommand n = either (const Nothing) Just . parse (command n) ""
+
+respond :: String -> Maybe String -> Processor ()
+respond c (Just m) = send $ privmsg c m
+respond _ Nothing  = return ()
+
+channel :: String -> String -> String -> String
+channel c u n = if c == n then u else c
 
 ifPrivMsg :: Message -> (String -> String -> [String] -> Processor (Maybe String)) -> Processor ()
-ifPrivMsg (Message (Just (Nick u _ _)) "PRIVMSG" [c,xs]) f = gets nick' >>= \n -> do
-    xs' <- liftNet . io $ parseMsg n xs
-    case xs' of
+ifPrivMsg (Message (Just (Nick u _ _)) "PRIVMSG" [c,xs]) f = gets nick' >>= \n ->
+    case isCommand n xs of
         Nothing        -> return ()
-        Just (cmd,arg) -> do
-            msg <- f u cmd arg
-            case msg of
-                Just m  -> send $ privmsg (if c == n then u else c) m
-                Nothing -> return ()
-
+        Just (cmd,arg) -> f u cmd arg >>= respond (channel c u n)
 ifPrivMsg _ _ = return ()
 
 eval :: String -> String -> [String] -> Processor (Maybe String)
