@@ -75,11 +75,6 @@ connect server port p = bracket_ start end $ do
 addChan :: String -> Net ()
 addChan c = write (joinChan c) >> modify (\s -> s { chan = c : chan s })
 
-myCmd msg@(Message p _ _) proc = ifNotProt msg $
-    case p of
-        Just (Nick u _ _) -> authorize u $ proc msg
-        _                 -> return ()
-
 start :: Net ()
 start = do
     n <- gets nick'
@@ -91,7 +86,6 @@ start = do
 run :: Net ()
 run = withSocket $ \h -> do
     start
-    proc <- asks proc
     forever $ do
         s <- io $ hGetLine h
         m <- io $ decode (s ++ "\n")
@@ -99,12 +93,15 @@ run = withSocket $ \h -> do
             Nothing  -> io . putStrLn . withHL2 $ init s
             Just msg -> do
                 io . putStrLn . withHL1 $ init s
-                t <- execProcessor $ myCmd msg proc
-                mapM_ write t
+                handleInput msg
   where
     withHL1   = highlight [ Foreground Blue ]
     withHL2   = highlight [ Foreground Red ]
     forever a = a >> forever a
+
+handleInput :: Message -> Net ()
+handleInput msg =
+    asks proc >>= execProcessor . handleProtocol msg . ($ msg) >>= flip forM_ write
 
 runNet :: Bot -> BotState -> Net a -> IO (a, BotState)
 runNet b st (Net a) = runStateT (runReaderT a b) st
@@ -124,15 +121,15 @@ withSocket f = asks socket >>= f
 (<+>) :: Monoid m => m -> m -> m
 (<+>) = mappend
 
-ifNotProt :: Message -> Processor () -> Processor ()
-ifNotProt msg f = prot msg >>= \b -> unless b f
+handleProtocol :: Message -> Processor () -> Processor ()
+handleProtocol msg f = protocol msg >>= \b -> unless b f
 
 send :: Message -> Processor ()
 send = tell . return
 
-prot :: Message -> Processor Bool
-prot (Message _ "PING" [xs]) = send (pong xs) >> return True
-prot _                       = return False
+protocol :: Message -> Processor Bool
+protocol (Message _ "PING" [xs]) = send (pong xs) >> return True
+protocol _                       = return False
 
 authorize :: String -> Processor () -> Processor ()
 authorize u f = asks ops >>= \o -> when (u `elem` o) f
