@@ -8,8 +8,8 @@ type Password = String
 mkMessage :: String -> [Parameter] -> Message
 mkMessage = Message Nothing
 
-pong :: Message -> Message
-pong (Message _ "PING" h) = mkMessage "PONG" h
+pong :: String -> Message
+pong m = mkMessage "PONG" [m]
 
 nick :: UserName -> Message
 nick u = mkMessage "NICK" [u]

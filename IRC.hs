@@ -75,7 +75,10 @@ connect server port p = bracket_ start end $ do
 addChan :: String -> Net ()
 addChan c = write (joinChan c) >> modify (\s -> s { chan = c : chan s })
 
-myCmd msg@(Message p _ _) proc = ifNotProt msg . ifUser p $ proc msg
+myCmd msg@(Message p _ _) proc = ifNotProt msg $
+    case p of
+        Just (Nick u _ _) -> authorize u $ proc msg
+        _                 -> return ()
 
 start :: Net ()
 start = do
@@ -90,10 +93,10 @@ run = withSocket $ \h -> do
     start
     proc <- asks proc
     forever $ do
-        s <- io (hGetLine h)
-        m <- io (decode (s ++ "\n"))
+        s <- io $ hGetLine h
+        m <- io $ decode (s ++ "\n")
         case m of
-            Nothing -> io . putStrLn . withHL2 $ init s
+            Nothing  -> io . putStrLn . withHL2 $ init s
             Just msg -> do
                 io . putStrLn . withHL1 $ init s
                 t <- execProcessor $ myCmd msg proc
@@ -128,12 +131,11 @@ send :: Message -> Processor ()
 send = tell . return
 
 prot :: Message -> Processor Bool
-prot msg@(Message _ "PING" xs) = send (pong msg) >> return True
-prot _                         = return False
+prot (Message _ "PING" [xs]) = send (pong xs) >> return True
+prot _                       = return False
 
-ifUser :: Maybe Prefix -> Processor () -> Processor ()
-ifUser (Just (Nick u _ _)) f = asks ops >>= \o -> when (u `elem` o) f
-ifUser _                   _ = return ()
+authorize :: String -> Processor () -> Processor ()
+authorize u f = asks ops >>= \o -> when (u `elem` o) f
 
 exit :: Maybe String -> Net ()
 exit msg = write (quit msg) >> io (exitWith ExitSuccess)
