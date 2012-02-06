@@ -15,10 +15,10 @@ myPort   = 6667
 myNick   = "netopir"
 myChans  = [ "#bots", "#derpgmzlj" ]
 
-myProc msg@(Message p _ _) = case p of
+myProc stats msg@(Message p _ _) = case p of
     Just (Nick u _ _) -> authorize u $ mconcat
         [ runMacros msg $ mconcat [ eval, ids ]
-        , collectStats msg
+        , collectStats stats msg
         ]
     _                 -> return ()
 
@@ -36,4 +36,6 @@ ids _ "id2" msg = return . Just $ show msg
 ids u "ID"  msg = return . Just $ u ++ ": " ++ unwords msg
 ids _ _     _   = return Nothing
 
-main = hbot myServer myPort myNick myChans myProc
+main = do
+    stats <- emptyStats
+    hbot myServer myPort myNick myChans (myProc stats)
