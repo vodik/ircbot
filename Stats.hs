@@ -37,7 +37,7 @@ updateStats stats c n = do
     env <- liftIO $ readIORef stats
     let nickMap  = fromMaybe M.empty $ M.lookup c env
         nickMap' = M.insertWith (+) n 1 nickMap
-        env'     = M.insert c nickMap env
+        env'     = M.insert c nickMap' env
     liftIO $ writeIORef stats env'
     liftIO $ putStrLn "Got some stats! ----"
     liftIO $ putStrLn $ show env'
