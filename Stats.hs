@@ -29,7 +29,7 @@ emptyStats = newIORef M.empty
 
 collectStats :: Stats -> Message -> Processor ()
 collectStats env (Message (Just (Nick u _ _)) "PRIVMSG" [c,_]) =
-    gets nick' >>= \n -> when (n /= u) $ updateStats env c u
+    gets nick' >>= \n -> when (n /= c) $ updateStats env c u
 collectStats _   _ = return ()
 
 updateStats :: Stats -> String -> String -> Processor ()
