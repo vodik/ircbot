@@ -16,11 +16,11 @@ myNick   = "netopir"
 myChans  = [ "#bots", "#derpgmzlj" ]
 
 myProc stats msg@(Message p _ _) = case p of
-    Just (Nick u _ _) -> authorize u $ mconcat
+    Just (Nick u _ _) -> (authorize u $ mconcat
         [ runMacros msg $ mconcat [ eval, ids ]
-        , collectStats stats msg
-        ]
-    _                 -> return ()
+        ])
+        <+> collectStats stats msg
+    _ -> return ()
 
 changeNick n = send (nick n) >> modify (\s -> s { nick' = n })
 
