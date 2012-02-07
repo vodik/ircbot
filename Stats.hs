@@ -45,7 +45,10 @@ updateStats stats c n = do
 
 serializeStats :: Stats -> IO ()
 serializeStats stats = do
-    forever $ writeFile "test.txt" . show <$> readIORef stats
+    forever $ do
+        putStrLn "SERIALIZING!"
+        env <- readIORef stats
+        writeFile "test.txt" $ show env
   where
     forever a = a >> threadDelay (15 * oneSecond) >> forever a
-    oneSecond = 1000
+    oneSecond = 1000000
