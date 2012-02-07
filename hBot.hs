@@ -1,6 +1,7 @@
 import Data.Monoid
 
 import Control.Applicative
+import Control.Concurrent
 import Control.Monad.State
 import Data.List
 
@@ -36,4 +37,5 @@ ids _ _     _   = return Nothing
 
 main = do
     stats <- emptyStats
+    forkIO $ serializeStats stats
     hbot myServer myPort myNick myChans (myProc stats)

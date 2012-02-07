@@ -1,6 +1,7 @@
 module Stats where
 
 import Control.Applicative
+import Control.Concurrent
 import Control.Exception
 import Control.Monad
 import Control.Monad.Reader
@@ -41,3 +42,10 @@ updateStats stats c n = do
     liftIO $ writeIORef stats env'
     liftIO $ putStrLn "Got some stats!"
     liftIO . putStrLn $ show env'
+
+serializeStats :: Stats -> IO ()
+serializeStats stats = do
+    forever $ writeFile "test.txt" . show <$> readIORef stats
+  where
+    forever a = a >> threadDelay (15 * oneSecond) >> forever a
+    oneSecond = 1000
