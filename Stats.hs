@@ -25,11 +25,11 @@ import IRC.Commands
 type Stats = IORef (M.Map String (M.Map String Int))
 
 emptyStats :: IO Stats
-emptyStats = newIORef $ M.empty
+emptyStats = newIORef M.empty
 
 collectStats :: Stats -> Message -> Processor ()
 collectStats env (Message (Just (Nick u _ _)) "PRIVMSG" [c,_]) =
-    updateStats env c u
+    gets nick' >>= \n -> when (n /= u) $ updateStats env c u
 collectStats _   _ = return ()
 
 updateStats :: Stats -> String -> String -> Processor ()
@@ -39,5 +39,5 @@ updateStats stats c n = do
         nickMap' = M.insertWith (+) n 1 nickMap
         env'     = M.insert c nickMap' env
     liftIO $ writeIORef stats env'
-    liftIO $ putStrLn "Got some stats! ----"
-    liftIO $ putStrLn $ show env'
+    liftIO $ putStrLn "Got some stats!"
+    liftIO . putStrLn $ show env'
