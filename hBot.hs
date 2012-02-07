@@ -21,10 +21,12 @@ myProc stats msg@(Message p _ _) = case p of
     _ -> return ()
 
 changeNick n = send (nick n) >> modify (\s -> s { nick' = n })
+enterChan c = send (joinChan c)
 
 eval :: String -> String -> [String] -> Processor (Maybe String)
 eval _ "uptime" _   = Just <$> liftNet uptime
 eval _ "nick"   [n] = changeNick n >> return (Just $ "Now known as " ++ n)
+eval _ "join"   [n] = enterChan n >> return (Just $ "Joining " ++ n)
 eval _ "quit"   _   = liftNet (exit $ Just "Goodbye World") >> return Nothing
 eval _ _        _   = return Nothing
 
