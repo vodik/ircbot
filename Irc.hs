@@ -42,10 +42,10 @@ onChannel :: (Channel -> Irc ()) -> Irc ()
 onChannel f = getChannel >>= maybe (return ()) f
 
 part :: Maybe ByteString -> Irc ()
-part msg = onChannel $ write . flip IRC.part msg
+part msg = onChannel $ \chan -> write $ IRC.part chan msg
 
 reply :: ByteString -> Irc ()
-reply msg = onChannel $ write . flip IRC.privmsg msg
+reply msg = onChannel $ \chan -> write $ IRC.privmsg chan msg
 
 io :: MonadIO m => IO a -> m a
 io = liftIO
