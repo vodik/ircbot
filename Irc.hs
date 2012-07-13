@@ -28,21 +28,24 @@ commands = do
   where
     delay = io . threadDelay . (1000000 *)
 
-getChannel :: Irc Channel
+getChannel :: Irc (Maybe Channel)
 getChannel = do
     c <- head <$> asks (parameters . msg)
     p <- asks (prefix . msg)
-    return $ if c /= "boticus"
-        then c
+    return $ if B.head c == '#'
+        then Just c
         else case p of
-            Just (NickPrefix n _ _) -> n
-            _                       -> c
+            Just (NickPrefix n _ _) -> Just n
+            _                       -> Nothing
+
+onChannel :: (Channel -> Irc ()) -> Irc ()
+onChannel f = getChannel >>= maybe (return ()) f
 
 part :: Maybe ByteString -> Irc ()
-part msg = getChannel >>= write . flip IRC.part msg
+part msg = onChannel $ write . flip IRC.part msg
 
 reply :: ByteString -> Irc ()
-reply msg = getChannel >>= write . flip IRC.privmsg msg
+reply msg = onChannel $ write . flip IRC.privmsg msg
 
 io :: MonadIO m => IO a -> m a
 io = liftIO
