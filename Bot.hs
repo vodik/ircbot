@@ -52,7 +52,11 @@ connect' cfg = notify $ do
     db   <- setupDB cfg
     time <- getClockTime
 
-    let reader = liftM decode (B.hGetLine h)
+    -- let reader = liftM decode (B.hGetLine h)
+    let reader = do
+            line <- B.hGetLine h
+            B.putStrLn line
+            return $ decode line
         writer = writeChan chan
     return $ BotState reader writer db time
   where
