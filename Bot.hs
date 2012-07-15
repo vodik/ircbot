@@ -35,7 +35,6 @@ connect' :: BotConfig -> IO BotState
 connect' cfg = notify $ do
     let host = ircHost cfg
         port = show $ ircPort cfg
-    chan <- newChan
     addr <- head <$> getAddrInfo Nothing (Just host) (Just port)
     sock <- socket (addrFamily addr) Stream defaultProtocol
     connect sock $ addrAddress addr
@@ -43,14 +42,15 @@ connect' cfg = notify $ do
     h <- socketToHandle sock ReadWriteMode
     hSetBuffering h NoBuffering
 
+    chan <- newChan
     forkIO . fix $ \loop -> do
         msg <- encode <$> readChan chan
         B.hPutStrLn h msg
         B.putStrLn    msg
         loop
 
-    db    <- DB.connectSqlite3 $ ircDatabase cfg
-    time  <- getClockTime
+    db   <- DB.connectSqlite3 $ ircDatabase cfg
+    time <- getClockTime
 
     let readLine = B.hGetLine h
         writer   = writeChan chan
