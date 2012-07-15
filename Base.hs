@@ -13,10 +13,10 @@ import qualified Database.HDBC.Sqlite3 as DB
 import qualified Network.IRC.Commands as IRC
 
 data BotState = BotState
-    { readLine  :: IO ByteString
-    , writer    :: Message -> IO ()
-    , db        :: DB.Connection
-    , startTime :: ClockTime
+    { readMessage  :: IO (Maybe Message)
+    , writeMessage :: Message -> IO ()
+    , db           :: DB.Connection
+    , startTime    :: ClockTime
     }
 
 data IrcState = IrcState
@@ -34,10 +34,10 @@ class IrcMonad m where
     write :: Message -> m ()
 
 instance IrcMonad Bot where
-    write msg = asks writer >>= liftIO . ($ msg)
+    write msg = asks writeMessage >>= liftIO . ($ msg)
 
 instance IrcMonad Irc where
-    write msg = asks (writer . bot) >>= liftIO . ($ msg)
+    write msg = asks (writeMessage . bot) >>= liftIO . ($ msg)
 
 pong :: IrcMonad m => Message -> m ()
 pong = write . IRC.pong

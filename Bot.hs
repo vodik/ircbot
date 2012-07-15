@@ -49,16 +49,21 @@ connect' cfg = notify $ do
         B.putStrLn    msg
         loop
 
-    db   <- DB.connectSqlite3 $ ircDatabase cfg
+    db   <- setupDB cfg
     time <- getClockTime
 
-    let readLine = B.hGetLine h
-        writer   = writeChan chan
-    return $ BotState readLine writer db time
+    let reader = liftM decode (B.hGetLine h)
+        writer = writeChan chan
+    return $ BotState reader writer db time
   where
     notify = bracket_
         (B.putStrLn "Connect..." >> hFlush stdout)
         (B.putStrLn "done")
+
+setupDB :: BotConfig -> IO DB.Connection
+setupDB cfg = do
+    conn <- DB.connectSqlite3 $ ircDatabase cfg
+    return conn
 
 runBot :: Bot a -> BotState -> IO a
 runBot = runReaderT . unBot
@@ -69,12 +74,12 @@ run cfg = do
     write $ IRC.user (ircNick cfg) "0" "*" (ircRealName cfg)
     write $ IRC.joinChan "#vodik"
 
-    reader <- asks readLine
+    reader <- asks readMessage
     forever $ do
         line <- io reader
-        case decode line of
+        case line of
             Just msg -> do
-                io $ B.putStrLn line
+                io . B.putStrLn $ encode msg
                 handleMessage msg
             Nothing  -> return ()
 
