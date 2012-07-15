@@ -57,7 +57,7 @@ connect' cfg = notify $ do
     return $ BotState reader writer db time
   where
     notify = bracket_
-        (B.putStrLn "Connect..." >> hFlush stdout)
+        (B.putStr "Connecting... " >> hFlush stdout)
         (B.putStrLn "done")
 
 setupDB :: BotConfig -> IO DB.Connection
@@ -79,7 +79,6 @@ run cfg = do
         line <- io reader
         case line of
             Just msg -> do
-                io . B.putStrLn $ encode msg
                 handleMessage msg
             Nothing  -> return ()
 
