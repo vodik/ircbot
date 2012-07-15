@@ -1,5 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, Rank2Types #-}
 
 module Base where
 
@@ -26,9 +25,6 @@ data IrcState = IrcState
     { msg :: Message
     , bot :: BotState
     }
-
-data Command = BangCommand ByteString [ByteString]
-             | DirectMessage ByteString
 
 newtype Bot a = Bot { unBot :: ReaderT BotState IO a }
               deriving ( Monad, Functor, MonadIO, MonadReader BotState )

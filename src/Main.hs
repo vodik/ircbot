@@ -3,6 +3,14 @@
 module Main where
 
 import Bot
+import Modules
+
+import qualified Modules.Echo
+
+modules :: [Module]
+modules =
+    [ Modules.Echo.handler
+    ]
 
 main :: IO ()
 main = startBot BotConfig
