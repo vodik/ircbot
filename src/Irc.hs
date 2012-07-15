@@ -31,8 +31,8 @@ commands = whenCommand "PRIVMSG" $ do
   where
     delay = io . threadDelay . (1000000 *)
 
-getChannel :: Irc (Maybe Channel)
-getChannel = do
+getSender :: Irc (Maybe Channel)
+getSender = do
     c <- head <$> asks (parameters . msg)
     p <- asks (prefix . msg)
     return $ if B.head c == '#'
@@ -41,11 +41,11 @@ getChannel = do
             Just (NickPrefix n _ _) -> Just n
             _                       -> Nothing
 
-onChannel :: (Channel -> Irc ()) -> Irc ()
-onChannel f = getChannel >>= flip whenJust f
+toSender :: (Channel -> Irc ()) -> Irc ()
+toSender f = getSender >>= flip whenJust f
 
 part :: Maybe ByteString -> Irc ()
-part msg = onChannel $ \chan -> write $ IRC.part chan msg
+part msg = toSender $ write . flip IRC.part msg
 
 reply :: ByteString -> Irc ()
-reply msg = onChannel $ \chan -> write $ IRC.privmsg chan msg
+reply msg = toSender $ write . flip IRC.privmsg msg
