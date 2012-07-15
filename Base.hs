@@ -13,8 +13,7 @@ import qualified Database.HDBC.Sqlite3 as DB
 import qualified Network.IRC.Commands as IRC
 
 data BotState = BotState
-    { socket    :: Handle
-    , chan      :: Chan Message
+    { readLine  :: IO ByteString
     , writer    :: Message -> IO ()
     , db        :: DB.Connection
     , startTime :: ClockTime

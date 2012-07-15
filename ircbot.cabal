@@ -14,5 +14,6 @@ Executable bot
     network -any,
     bytestring -any,
     attoparsec -any,
+    HDBC -any,
     HDBC-sqlite3 -any,
     old-time -any

@@ -8,7 +8,8 @@ import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.Reader
 import Data.ByteString.Char8 (ByteString)
-import Network
+import Network.Socket hiding (send, sendTo)
+import Network.Socket.ByteString
 import System.IO
 import System.Time
 import Network.IRC
@@ -22,60 +23,55 @@ import Irc
 data BotConfig = BotConfig
     { ircNick     :: ByteString
     , ircRealName :: ByteString
-    , ircHost     :: ByteString
+    , ircHost     :: String
     , ircPort     :: Int
     , ircDatabase :: FilePath
     }
 
 startBot :: BotConfig -> IO ()
-startBot cfg = bracket (connect cfg) disconnect loop
-  where
-    disconnect = hClose . socket
-    loop       = runBot (run cfg)
+startBot cfg = connect' cfg >>= runBot (run cfg)
 
-runBot :: Bot a -> BotState -> IO a
-runBot = runReaderT . unBot
+connect' :: BotConfig -> IO BotState
+connect' cfg = notify $ do
+    let host = ircHost cfg
+        port = show $ ircPort cfg
+    chan <- newChan
+    addr <- head <$> getAddrInfo Nothing (Just host) (Just port)
+    sock <- socket (addrFamily addr) Stream defaultProtocol
+    connect sock $ addrAddress addr
 
-connect :: BotConfig -> IO BotState
-connect cfg = notify $ do
-    let host = B.unpack $ ircHost cfg
-        port = PortNumber . fromIntegral $ ircPort cfg
-
-    h  <- connectTo host port
+    h <- socketToHandle sock ReadWriteMode
     hSetBuffering h NoBuffering
 
-    c  <- newChan
-    db <- DB.connectSqlite3 $ ircDatabase cfg
-    t  <- getClockTime
-    return $ BotState h c (writeChan c) db t
+    forkIO . fix $ \loop -> do
+        msg <- encode <$> readChan chan
+        B.hPutStrLn h msg
+        B.putStrLn    msg
+        loop
+
+    db    <- DB.connectSqlite3 $ ircDatabase cfg
+    time  <- getClockTime
+
+    let readLine = B.hGetLine h
+        writer   = writeChan chan
+    return $ BotState readLine writer db time
   where
     notify = bracket_
         (B.putStrLn "Connect..." >> hFlush stdout)
         (B.putStrLn "done")
 
+runBot :: Bot a -> BotState -> IO a
+runBot = runReaderT . unBot
+
 run :: BotConfig -> Bot ()
 run cfg = do
-    reader <- readLoop
     write $ IRC.nick (ircNick cfg)
     write $ IRC.user (ircNick cfg) "0" "*" (ircRealName cfg)
     write $ IRC.joinChan "#vodik"
-    listen
 
-readLoop :: Bot ThreadId
-readLoop = do
-    c <- asks chan
-    h <- asks socket
-    io . forkIO . fix $ \loop -> do
-        msg <- encode <$> readChan c
-        B.hPutStrLn h msg
-        B.putStrLn    msg
-        loop
-
-listen :: Bot ()
-listen = do
-    h <- asks socket
+    reader <- asks readLine
     forever $ do
-        line <- io $ B.hGetLine h
+        line <- io reader
         case decode line of
             Just msg -> do
                 io $ B.putStrLn line
