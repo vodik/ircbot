@@ -1,10 +1,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE Rank2Types #-}
 
 module Base where
 
 import Control.Concurrent.Chan
 import Control.Monad.Reader
 import Data.ByteString.Char8 (ByteString)
+import Database.HDBC (IConnection, commit)
 import System.IO
 import System.Time
 import Network.IRC
@@ -30,17 +32,26 @@ newtype Bot a = Bot { unBot :: ReaderT BotState IO a }
 newtype Irc a = Irc { unIrc :: ReaderT IrcState IO a }
               deriving ( Monad, Functor, MonadIO, MonadReader IrcState )
 
-class IrcMonad m where
-    write :: Message -> m ()
+class MonadIrc m where
+    write   :: Message -> m ()
+    withSql :: (forall c. IConnection c => c -> IO a) -> m a
 
-instance IrcMonad Bot where
-    write msg = asks writeMessage >>= liftIO . ($ msg)
+instance MonadIrc Bot where
+    write msg = asks writeMessage >>= io . ($ msg)
+    withSql f = asks db >>= \conn -> runSql conn f
 
-instance IrcMonad Irc where
-    write msg = asks (writeMessage . bot) >>= liftIO . ($ msg)
+instance MonadIrc Irc where
+    write msg = asks (writeMessage . bot) >>= io . ($ msg)
+    withSql f = asks (db . bot) >>= \conn -> runSql conn f
 
-pong :: IrcMonad m => Message -> m ()
+runSql :: (MonadIO m, IConnection conn) => conn -> (conn -> IO a) -> m a
+runSql conn f = io $ f conn >>= \result -> commit conn >> return result
+
+pong :: MonadIrc m => Message -> m ()
 pong = write . IRC.pong
 
-quit :: IrcMonad m => Maybe ByteString -> m ()
+quit :: MonadIrc m => Maybe ByteString -> m ()
 quit = write . IRC.quit
+
+io :: MonadIO m => IO a -> m a
+io = liftIO

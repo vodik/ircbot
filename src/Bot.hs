@@ -8,13 +8,14 @@ import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.Reader
 import Data.ByteString.Char8 (ByteString)
+import Database.HDBC.Sqlite3 (connectSqlite3)
 import Network.Socket hiding (send, sendTo)
 import Network.Socket.ByteString
 import System.IO
 import System.Time
 import Network.IRC
 import qualified Data.ByteString.Char8 as B
-import qualified Database.HDBC.Sqlite3 as DB
+import qualified Database.HDBC as DB
 import qualified Network.IRC.Commands as IRC
 
 import Base
@@ -49,7 +50,7 @@ connect' cfg = notify $ do
         B.putStrLn    msg
         loop
 
-    db   <- setupDB cfg
+    db   <- connectSqlite3 $ ircDatabase cfg
     time <- getClockTime
 
     -- let reader = liftM decode (B.hGetLine h)
@@ -64,16 +65,13 @@ connect' cfg = notify $ do
         (B.putStr "Connecting... " >> hFlush stdout)
         (B.putStrLn "done")
 
-setupDB :: BotConfig -> IO DB.Connection
-setupDB cfg = do
-    conn <- DB.connectSqlite3 $ ircDatabase cfg
-    return conn
-
 runBot :: Bot a -> BotState -> IO a
 runBot = runReaderT . unBot
 
 run :: BotConfig -> Bot ()
 run cfg = do
+    setupDB cfg
+
     write $ IRC.nick (ircNick cfg)
     write $ IRC.user (ircNick cfg) "0" "*" (ircRealName cfg)
     write $ IRC.joinChan "#vodik"
@@ -82,9 +80,15 @@ run cfg = do
     forever $ do
         line <- io reader
         case line of
-            Just msg -> do
-                handleMessage msg
+            Just msg -> handleMessage msg
             Nothing  -> return ()
+
+setupDB :: BotConfig -> Bot ()
+setupDB cfg = void $ withSql $ \conn ->
+    DB.run conn "CREATE IF NOT EXISTS TABLE users ( \
+                \  id SERIAL, \
+                \  nick TEXT, host TEXT, \
+                \)" []
 
 handleMessage :: Message -> Bot ()
 handleMessage msg =

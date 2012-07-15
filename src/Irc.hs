@@ -46,18 +46,3 @@ part msg = onChannel $ \chan -> write $ IRC.part chan msg
 
 reply :: ByteString -> Irc ()
 reply msg = onChannel $ \chan -> write $ IRC.privmsg chan msg
-
-io :: MonadIO m => IO a -> m a
-io = liftIO
-
--------------------------------------------------------------------
-
--- initialize :: Irc ()
--- initialize = do
---     withSql $ \conn ->
---         DB.run conn "CREATE IF NOT EXISTS TABLE seen ( \
---                     \ id SERIAL, \
---                     \ host TEXT, channel TEXT, \
---                     \ sender TEXT, time TEXT, text TEXT \
---                     \)" []
---     return ()
