@@ -16,7 +16,7 @@ runIrc :: Irc a -> IrcState -> IO a
 runIrc = runReaderT . unIrc
 
 whenCommand :: ByteString -> Irc () -> Irc ()
-whenCommand cmd f = asks msg >>= (`when` f) . (=? cmd)
+whenCommand cmd f = asks msg >>= flip when f . (=? cmd)
 
 commands :: Irc ()
 commands = whenCommand "PRIVMSG" $ do
@@ -42,7 +42,7 @@ getChannel = do
             _                       -> Nothing
 
 onChannel :: (Channel -> Irc ()) -> Irc ()
-onChannel f = getChannel >>= maybe (return ()) f
+onChannel f = getChannel >>= flip whenJust f
 
 part :: Maybe ByteString -> Irc ()
 part msg = onChannel $ \chan -> write $ IRC.part chan msg

@@ -6,10 +6,11 @@ module Base where
 import Control.Concurrent.Chan
 import Control.Monad.Reader
 import Data.ByteString.Char8 (ByteString)
+import Data.Maybe (maybe)
 import Data.Time
 import Database.HDBC (IConnection, commit)
-import System.IO
 import Network.IRC
+import System.IO
 import Prelude hiding (catch)
 import qualified Database.HDBC.Sqlite3 as DB
 import qualified Network.IRC.Commands as IRC
@@ -58,3 +59,6 @@ quit = write . IRC.quit
 
 io :: MonadIO m => IO a -> m a
 io = liftIO
+
+whenJust :: Monad m => Maybe a -> (a -> m ()) -> m ()
+whenJust m f = maybe (return ()) f m
