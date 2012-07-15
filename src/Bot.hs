@@ -77,26 +77,22 @@ run cfg = do
     write $ IRC.joinChan "#vodik"
 
     reader <- asks readMessage
-    forever $ do
+    fix $ \loop -> do
         line <- io reader
         case line of
-            Just msg -> handleMessage msg
+            Just msg -> handleMessage msg >> loop
             Nothing  -> return ()
 
 setupDB :: BotConfig -> Bot ()
 setupDB cfg = void $ withSql $ \conn ->
-    DB.run conn "CREATE IF NOT EXISTS TABLE users ( \
+    DB.run conn "CREATE TABLE IF NOT EXISTS users ( \
                 \  id SERIAL, \
-                \  nick TEXT, host TEXT, \
+                \  nick TEXT, host TEXT \
                 \)" []
 
 handleMessage :: Message -> Bot ()
-handleMessage msg =
-    case command msg of
-        "PING"    -> pong msg
-        "PRIVMSG" -> handle msg
-        _         -> return ()
-  where
-    handle msg = do
+handleMessage msg = do
+    when (msg =? "PING") $ pong msg
+    void $ do
         state <- IrcState msg <$> ask
-        void . io . forkIO $ runIrc commands state
+        io . forkIO $ runIrc commands state

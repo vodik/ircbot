@@ -1,5 +1,5 @@
 module Network.IRC
-    ( (==?), toLower
+    ( (==?), toLower, (=?)
     , module IRC
     ) where
 
@@ -14,6 +14,9 @@ import qualified Data.Char as Char (toLower)
 
 (==?) :: ByteString -> ByteString -> Bool
 (==?) = (==) `on` toLower
+
+(=?) :: Message -> ByteString -> Bool
+(=?) = (==) . command
 
 toLower :: ByteString -> ByteString
 toLower = B.map lower

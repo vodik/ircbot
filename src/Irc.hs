@@ -15,8 +15,11 @@ import Base
 runIrc :: Irc a -> IrcState -> IO a
 runIrc = runReaderT . unIrc
 
+whenCommand :: ByteString -> Irc () -> Irc ()
+whenCommand cmd f = asks msg >>= (`when` f) . (=? cmd)
+
 commands :: Irc ()
-commands = do
+commands = whenCommand "PRIVMSG" $ do
     (x : xs) <- B.words . (!! 1) <$> asks (parameters . msg)
     case x of
         "!test"  -> reply "test yourself"
