@@ -8,6 +8,7 @@ import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.Reader
 import Data.ByteString.Char8 (ByteString)
+import Data.IORef
 import Data.Time
 import Database.HDBC.Sqlite3 (connectSqlite3)
 import Network.Socket hiding (send, sendTo)
@@ -20,6 +21,7 @@ import qualified Network.IRC.Commands as IRC
 
 import Base
 import Irc
+import Modules
 
 data BotConfig = BotConfig
     { ircNick     :: ByteString
@@ -27,6 +29,7 @@ data BotConfig = BotConfig
     , ircHost     :: String
     , ircPort     :: Int
     , ircDatabase :: FilePath
+    , ircModules  :: [Module]
     }
 
 startBot :: BotConfig -> IO ()
@@ -52,14 +55,14 @@ connect' cfg = notify $ do
 
     db   <- connectSqlite3 $ ircDatabase cfg
     time <- getCurrentTime
+    mods <- newIORef []
 
-    -- let reader = liftM decode (B.hGetLine h)
     let reader = do
             line <- B.hGetLine h
             B.putStrLn line
             return $ decode line
-        writer = writeChan chan
-    return $ BotState reader writer db time
+        writer  = writeChan chan
+    return $ BotState reader writer db time mods
   where
     notify = bracket_
         (B.putStr "Connecting... " >> hFlush stdout)
@@ -71,6 +74,7 @@ runBot = runReaderT . unBot
 run :: BotConfig -> Bot ()
 run cfg = do
     setupDB cfg
+    loadModules $ ircModules cfg
 
     write $ IRC.nick (ircNick cfg)
     write $ IRC.user (ircNick cfg) "0" "*" (ircRealName cfg)
@@ -95,6 +99,9 @@ setupDB cfg = do
 handleMessage :: Message -> Bot ()
 handleMessage msg = do
     when (msg =? "PING") $ pong msg
-    void $ do
-        state <- IrcState msg <$> ask
-        io . forkIO $ runIrc commands state
+
+    bot <- ask
+    hs  <- io . readIORef $ handlers bot
+    let state = IrcState msg bot
+
+    void . io . forkIO $ mapM_ (\c -> runIrc c state) (hook $ head hs)

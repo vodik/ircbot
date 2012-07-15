@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, Rank2Types #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module Base where
 
@@ -6,6 +7,7 @@ import Control.Concurrent.Chan
 import Control.Monad.Reader
 import Data.ByteString.Char8 (ByteString)
 import Data.Maybe (maybe)
+import Data.IORef
 import Data.Time
 import Database.HDBC (IConnection, commit)
 import Network.IRC
@@ -14,11 +16,23 @@ import Prelude hiding (catch)
 import qualified Database.HDBC.Sqlite3 as DB
 import qualified Network.IRC.Commands as IRC
 
+data Module = forall a. Module
+    { moduleName  :: ByteString
+    , commandList :: [a -> Irc ()]
+    , commandInit :: Bot a
+    }
+
+data Handler = Handler
+    { namespace :: ByteString
+    , hook      :: [Irc ()]
+    }
+
 data BotState = BotState
     { readMessage  :: IO (Maybe Message)
     , writeMessage :: Message -> IO ()
     , database     :: DB.Connection
     , startTime    :: UTCTime
+    , handlers     :: IORef [Handler]
     }
 
 data IrcState = IrcState
