@@ -17,7 +17,7 @@ import qualified Network.IRC.Commands as IRC
 data BotState = BotState
     { readMessage  :: IO (Maybe Message)
     , writeMessage :: Message -> IO ()
-    , db           :: DB.Connection
+    , database     :: DB.Connection
     , startTime    :: ClockTime
     }
 
@@ -38,14 +38,14 @@ class MonadIrc m where
 
 instance MonadIrc Bot where
     write msg = asks writeMessage >>= io . ($ msg)
-    withSql f = asks db >>= \conn -> runSql conn f
+    withSql f = asks database     >>= runSql f
 
 instance MonadIrc Irc where
     write msg = asks (writeMessage . bot) >>= io . ($ msg)
-    withSql f = asks (db . bot) >>= \conn -> runSql conn f
+    withSql f = asks (database     . bot) >>= runSql f
 
-runSql :: (MonadIO m, IConnection conn) => conn -> (conn -> IO a) -> m a
-runSql conn f = io $ f conn >>= \result -> commit conn >> return result
+runSql :: (MonadIO m, IConnection conn) => (conn -> IO a) -> conn -> m a
+runSql f conn = io $ f conn >>= \result -> commit conn >> return result
 
 pong :: MonadIrc m => Message -> m ()
 pong = write . IRC.pong
