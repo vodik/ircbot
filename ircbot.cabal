@@ -13,8 +13,8 @@ Executable bot
     base -any,
     mtl -any,
     network -any,
+    time -any,
     bytestring -any,
     attoparsec -any,
     HDBC -any,
-    HDBC-sqlite3 -any,
-    old-time -any
+    HDBC-sqlite3 -any

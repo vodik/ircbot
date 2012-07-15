@@ -6,9 +6,9 @@ module Base where
 import Control.Concurrent.Chan
 import Control.Monad.Reader
 import Data.ByteString.Char8 (ByteString)
+import Data.Time
 import Database.HDBC (IConnection, commit)
 import System.IO
-import System.Time
 import Network.IRC
 import Prelude hiding (catch)
 import qualified Database.HDBC.Sqlite3 as DB
@@ -18,13 +18,16 @@ data BotState = BotState
     { readMessage  :: IO (Maybe Message)
     , writeMessage :: Message -> IO ()
     , database     :: DB.Connection
-    , startTime    :: ClockTime
+    , startTime    :: UTCTime
     }
 
 data IrcState = IrcState
     { msg :: Message
     , bot :: BotState
     }
+
+data Command = BangCommand ByteString [ByteString]
+             | DirectMessage ByteString
 
 newtype Bot a = Bot { unBot :: ReaderT BotState IO a }
               deriving ( Monad, Functor, MonadIO, MonadReader BotState )

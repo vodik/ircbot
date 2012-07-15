@@ -8,12 +8,12 @@ import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.Reader
 import Data.ByteString.Char8 (ByteString)
+import Data.Time
 import Database.HDBC.Sqlite3 (connectSqlite3)
 import Network.Socket hiding (send, sendTo)
 import Network.Socket.ByteString
-import System.IO
-import System.Time
 import Network.IRC
+import System.IO
 import qualified Data.ByteString.Char8 as B
 import qualified Database.HDBC as DB
 import qualified Network.IRC.Commands as IRC
@@ -51,7 +51,7 @@ connect' cfg = notify $ do
         loop
 
     db   <- connectSqlite3 $ ircDatabase cfg
-    time <- getClockTime
+    time <- getCurrentTime
 
     -- let reader = liftM decode (B.hGetLine h)
     let reader = do
@@ -84,11 +84,13 @@ run cfg = do
             Nothing  -> return ()
 
 setupDB :: BotConfig -> Bot ()
-setupDB cfg = void $ withSql $ \conn ->
-    DB.run conn "CREATE TABLE IF NOT EXISTS users ( \
-                \  id SERIAL, \
-                \  nick TEXT, host TEXT \
-                \)" []
+setupDB cfg = do
+    withSql $ \conn ->
+        DB.run conn "CREATE TABLE IF NOT EXISTS users ( \
+                    \  id SERIAL, \
+                    \  nick TEXT, host TEXT \
+                    \)" []
+    return ()
 
 handleMessage :: Message -> Bot ()
 handleMessage msg = do
