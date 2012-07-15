@@ -104,4 +104,5 @@ handleMessage msg = do
     hs  <- io . readIORef $ handlers bot
     let state = IrcState msg bot
 
-    void . io . forkIO $ mapM_ (\c -> runIrc c state) (hook $ head hs)
+    forM_ hs $ \v ->
+        void . io . forkIO . mapM_ (`runIrc` state) $ hook v
