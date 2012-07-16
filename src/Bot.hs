@@ -61,7 +61,7 @@ connect' cfg = notify $ do
             line <- B.hGetLine h
             B.putStrLn line
             return $ decode line
-        writer  = writeChan chan
+        writer = writeChan chan
     return $ BotState reader writer db time mods
   where
     notify = bracket_

@@ -14,6 +14,7 @@ import Network.IRC
 
 import qualified Data.ByteString.Char8 as B
 import qualified Network.IRC.Commands as IRC
+import qualified Network.IRC.Commands.Mode as IRC
 import qualified Modules.Echo
 
 myModule :: Module
@@ -36,7 +37,7 @@ myModule2 = mkModule "Static" [command] (return "Hello World")
     command static = whenCommand "PRIVMSG" $ do
         (x : xs) <- B.words . (!! 1) <$> asks (parameters . msg)
         case x of
-            "!msg" -> reply static
+            "!msg" -> reply static >> kick "vodik"
             _      -> return ()
 
 modules :: [Module]
@@ -54,3 +55,12 @@ main = startBot BotConfig
     , ircDatabase = "rascal.db"
     , ircModules  = modules
     }
+
+withOp :: Irc () -> Irc ()
+withOp f = toSender $ \channel -> do
+    let op b = write $ IRC.setOp b channel "rascal"
+    op True >> f >> op False
+
+kick :: ByteString -> Irc ()
+kick nick = withOp . toSender $ \channel ->
+    write $ IRC.kick channel nick (Just "what a loser")

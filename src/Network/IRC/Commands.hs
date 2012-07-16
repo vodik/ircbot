@@ -28,5 +28,8 @@ part c = mkMessage "PART" . ([c] <>) . maybe [] return
 quit :: Maybe ByteString -> Message
 quit = mkMessage "QUIT" . maybe [] return
 
-privmsg :: ByteString -> ByteString -> Message
+privmsg :: Channel -> ByteString -> Message
 privmsg c m = mkMessage "PRIVMSG" [c, m]
+
+kick :: Channel -> UserName -> Maybe ByteString -> Message
+kick c u = mkMessage "KICK" . ([c, u] <>) . maybe [] return
