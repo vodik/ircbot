@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Bot where
+module Network.Bot where
 
 import Control.Applicative
 import Control.Concurrent
@@ -11,17 +11,16 @@ import Data.ByteString.Char8 (ByteString)
 import Data.IORef
 import Data.Time
 import Database.HDBC.Sqlite3 (connectSqlite3)
+import Network.Bot.Base
+import Network.Bot.Irc
+import Network.Bot.Modules
+import Network.IRC
 import Network.Socket hiding (send, sendTo)
 import Network.Socket.ByteString
-import Network.IRC
 import System.IO
 import qualified Data.ByteString.Char8 as B
 import qualified Database.HDBC as DB
 import qualified Network.IRC.Commands as IRC
-
-import Base
-import Irc
-import Modules
 
 data BotConfig = BotConfig
     { ircNick     :: ByteString
@@ -54,15 +53,15 @@ connect' cfg = notify $ do
         loop
 
     db   <- connectSqlite3 $ ircDatabase cfg
+    env  <- newIORef $ Environment (ircNick cfg) []
     time <- getCurrentTime
-    mods <- newIORef []
 
     let reader = do
             line <- B.hGetLine h
             B.putStrLn line
             return $ decode line
         writer = writeChan chan
-    return $ BotState reader writer db time mods
+    return $ BotState reader writer db env time
   where
     notify = bracket_
         (B.putStr "Connecting... " >> hFlush stdout)
@@ -96,12 +95,26 @@ setupDB cfg = do
                     \)" []
     return ()
 
+updateNick :: Message -> Bot ()
+updateNick msg = do
+    e <- readEnv
+    case prefix msg of
+        Just (NickPrefix n _ _) -> do
+            let n' = head $ parameters msg
+            io $ B.putStrLn n
+            io $ B.putStrLn n'
+            when (nick e == n) $
+                writeEnv $ e { nick = n' }
+            return ()
+        Nothing                 -> return ()
+
 handleMessage :: Message -> Bot ()
 handleMessage msg = do
     when (msg =? "PING") $ pong msg
+    when (msg =? "NICK") $ updateNick msg
 
     bot <- ask
-    hs  <- io . readIORef $ handlers bot
+    hs  <- handlers <$> readEnv
     let state = IrcState msg bot
 
     forM_ hs $ \v ->

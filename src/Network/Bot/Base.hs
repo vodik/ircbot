@@ -1,7 +1,6 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, Rank2Types #-}
-{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, Rank2Types, ExistentialQuantification #-}
 
-module Base where
+module Network.Bot.Base where
 
 import Control.Concurrent.Chan
 import Control.Monad.Reader
@@ -27,12 +26,19 @@ data Handler = Handler
     , hook      :: [Irc ()]
     }
 
+data Environment = Environment
+    { nick     :: ByteString
+    , handlers :: [Handler]
+    }
+
+type Env = IORef Environment
+
 data BotState = BotState
     { readMessage  :: IO (Maybe Message)
     , writeMessage :: Message -> IO ()
     , database     :: DB.Connection
+    , environment  :: Env
     , startTime    :: UTCTime
-    , handlers     :: IORef [Handler]
     }
 
 data IrcState = IrcState
@@ -47,19 +53,31 @@ newtype Irc a = Irc { unIrc :: ReaderT IrcState IO a }
               deriving ( Monad, Functor, MonadIO, MonadReader IrcState )
 
 class MonadIrc m where
-    write   :: Message -> m ()
-    withSql :: (forall c. IConnection c => c -> IO a) -> m a
+    write    :: Message -> m ()
+    withSql  :: (forall c. IConnection c => c -> IO a) -> m a
+    readEnv  :: m Environment
+    writeEnv :: Environment -> m ()
 
 instance MonadIrc Bot where
-    write msg = asks writeMessage >>= io . ($ msg)
-    withSql f = asks database     >>= runSql f
+    write msg  = asks writeMessage >>= io . ($ msg)
+    withSql f  = asks database     >>= runSql f
+    readEnv    = asks environment  >>= io . readIORef
+    writeEnv e = asks environment  >>= io . flip writeIORef e
 
 instance MonadIrc Irc where
-    write msg = asks (writeMessage . bot) >>= io . ($ msg)
-    withSql f = asks (database     . bot) >>= runSql f
+    write msg  = asks (writeMessage . bot) >>= io . ($ msg)
+    withSql f  = asks (database     . bot) >>= runSql f
+    readEnv    = asks (environment  . bot) >>= io . readIORef
+    writeEnv e = asks (environment  . bot) >>= io . flip writeIORef e
+
+modifyEnv :: (Monad m, MonadIrc m) => (Environment -> Environment) -> m ()
+modifyEnv f = readEnv >>= (writeEnv $!) . f
 
 runSql :: (MonadIO m, IConnection conn) => (conn -> IO a) -> conn -> m a
 runSql f conn = io $ f conn >>= \result -> commit conn >> return result
+
+getNick :: Bot ByteString
+getNick = asks environment >>= io . liftM nick . readIORef
 
 pong :: MonadIrc m => Message -> m ()
 pong = write . IRC.pong

@@ -1,15 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Irc where
+module Network.Bot.Irc where
 
 import Control.Applicative
 import Control.Monad.Reader
 import Data.ByteString.Char8 (ByteString)
+import Network.Bot.Base
 import Network.IRC
 import qualified Data.ByteString.Char8 as B
 import qualified Network.IRC.Commands as IRC
-
-import Base
 
 runIrc :: Irc a -> IrcState -> IO a
 runIrc = runReaderT . unIrc

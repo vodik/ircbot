@@ -2,29 +2,30 @@
 
 module Main where
 
-import Base
-import Bot
 import Control.Applicative
 import Control.Monad.Reader
 import Control.Concurrent (threadDelay)
 import Data.ByteString.Char8 (ByteString)
-import Irc
-import Modules
+import Network.Bot
+import Network.Bot.Base
+import Network.Bot.Irc
+import Network.Bot.Modules
 import Network.IRC
 
 import qualified Data.ByteString.Char8 as B
 import qualified Network.IRC.Commands as IRC
 import qualified Network.IRC.Commands.Mode as IRC
-import qualified Modules.Echo
+-- import qualified Network.IRC.Bot.Modules.Echo
 
 myModule :: Module
 myModule = mkModule_ "Example" [command]
   where
-    command = whenCommand "PRIVMSG" $ do
-        (x : xs) <- B.words . (!! 1) <$> asks (parameters . msg)
+    command = onBangCommand $ \x xs -> do
         case x of
             "!test"  -> reply "test yourself"
             "!echo"  -> reply (B.unwords xs)
+            "!nick"  -> liftM nick readEnv >>= reply
+            "!set"   -> write (IRC.nick $ head xs)
             "!part"  -> part $ Just "later gator"
             "!quit"  -> quit $ Just "later gator"
             "!delay" -> reply "will wait!" >> delay 10 >> reply "delayed reply!"
@@ -34,8 +35,7 @@ myModule = mkModule_ "Example" [command]
 myModule2 :: Module
 myModule2 = mkModule "Static" [command] (return "Hello World")
   where
-    command static = whenCommand "PRIVMSG" $ do
-        (x : xs) <- B.words . (!! 1) <$> asks (parameters . msg)
+    command static = onBangCommand $ \x _ -> do
         case x of
             "!msg" -> reply static >> kick "vodik"
             _      -> return ()

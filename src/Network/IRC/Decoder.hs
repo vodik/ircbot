@@ -10,16 +10,19 @@ import qualified Data.Attoparsec.Char8 as AC
 import qualified Data.ByteString.Char8 as BC
 
 whitespace :: A.Parser ()
-whitespace = AC.skipWhile (`elem` " \n\r")
+whitespace = AC.skipWhile (AC.inClass " \n\r")
+
+takeUntil :: String -> A.Parser ByteString
+takeUntil s = AC.takeTill (AC.inClass s)
 
 crlf :: A.Parser ()
 crlf = void $ AC.char8 '\r' *> optional (AC.char8 '\n')
 
-takeUntil :: String -> A.Parser ByteString
-takeUntil s = AC.takeTill (`elem` s)
-
 optionMaybe :: A.Parser a -> A.Parser (Maybe a)
 optionMaybe f = A.option Nothing $ Just <$> f
+
+failIf :: (Monad m, Alternative m) => m a -> m ()
+failIf f = AC.option False (f *> return True) >>= flip when (fail "")
 
 prefixParser :: A.Parser Prefix
 prefixParser = AC.char8 ':' *> (AC.try nickPrefix <|> serverPrefix)
@@ -29,12 +32,11 @@ serverPrefix = ServerPrefix <$> takeUntil " "
 
 nickPrefix :: A.Parser Prefix
 nickPrefix = do
-    n <- takeUntil " .!@\r\n"
-    p <- AC.option False $ AC.char8 '.' *> return True
-    when p $ fail ""
-    u <- optionMaybe $ AC.char8 '!' *> takeUntil " @\r\n"
-    h <- optionMaybe $ AC.char8 '@' *> takeUntil " \r\n"
-    return $ NickPrefix n u h
+    nick <- takeUntil " .!@\r\n"
+    failIf $ AC.char8 '.'
+    user <- optionMaybe $ AC.char8 '!' *> takeUntil " @\r\n"
+    host <- optionMaybe $ AC.char8 '@' *> takeUntil " \r\n"
+    return $ NickPrefix nick user host
 
 commandParser :: A.Parser ByteString
 commandParser = whitespace *> takeUntil " \r\n"
