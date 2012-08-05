@@ -1,0 +1,27 @@
+Name:           ircbot
+Version:        0.0.0
+Synopsis:       A simple ircbot written in haskell
+Author:         Simon Gomizelj
+Maintainer:     Simon Gomizelj <simongmzlj@gmail.com>
+Build-type:     Simple
+Cabal-version:  >=1.2
+
+Executable bot
+  Hs-source-dirs: src
+  Main-is: Main.hs
+  Build-depends:
+    base -any,
+    containers -any,
+    mtl -any,
+    transformers -any,
+    network -any,
+    time -any,
+    bytestring -any,
+    base64-bytestring -any,
+    attoparsec -any,
+    ansi-terminal -any,
+    Crypto -any,
+    entropy -any,
+    cereal -any,
+    HDBC -any,
+    HDBC-sqlite3 -any
