@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Bot.Sasl (authenticate) where
 
 import Control.Arrow (first)
@@ -17,21 +19,23 @@ import qualified Data.ByteString.Char8 as B8
 type Username = ByteString
 type Password = ByteString
 
-data Challenge = Challenge
-    { keySize   :: Int
-    , prime     :: Integer
-    , generator :: Integer
-    , publicKey :: Integer
-    }
+data Challenge = Plain
+               | Challenge { keySize   :: Int
+                           , prime     :: Integer
+                           , generator :: Integer
+                           , publicKey :: Integer
+                           }
 
-readChallenge :: Get Challenge
-readChallenge = do
-    n <- fi <$> getWord16be
-    Challenge n <$> getInteger n  -- read the prime number
-                <*> get           -- read the generator
-                <*> get           -- read the public key
+readChallenge :: ByteString -> Either String Challenge
+readChallenge "+"   = Right Plain
+readChallenge input = Base64.decode input >>= runGet get
   where
-    get = fi <$> getWord16be >>= getInteger
+    get = do
+        n <- fi <$> getWord16be
+        Challenge n <$> getInteger n  -- read the prime number
+                    <*> get'          -- read the generator
+                    <*> get'          -- read the public key
+    get' = fi <$> getWord16be >>= getInteger
 
 getInteger :: Int -> Get Integer
 getInteger size = fromBytes <$> sequence [ getWord8 | _ <- [ 1 .. size ] ]
@@ -66,9 +70,12 @@ doChallenge user pass challenge = do
         mapM_ putWord64be $ blowfish secret pass  -- write the crypted password
 
 authenticate :: Username -> Password -> ByteString -> IO (Either String ByteString)
-authenticate user pass input = case Base64.decode input >>= runGet readChallenge of
-    Left  l -> return $ Left l
-    Right r -> Right . Base64.encode <$> doChallenge user pass r
+authenticate user pass input = case readChallenge input of
+    Left  left  -> return $ Left left
+    Right Plain -> return . Right . Base64.encode $ runPut plain
+    Right right -> Right . Base64.encode <$> doChallenge user pass right
+  where
+    plain = putNullString user >> putNullString user >> putNullString pass
 
 powMod :: Integral a => a -> a -> a -> a
 powMod _ 0 _    = 1

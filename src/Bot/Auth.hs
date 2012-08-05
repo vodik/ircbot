@@ -30,7 +30,7 @@ saslAuth proto username password cfg = do
         let nick = ircNick cfg
         case take 2 $ parameters cmd of
             [ "*",  "LS"  ] -> send "CAP"          [ "REQ", "sasl" ] >> cont
-            [ nick, "ACK" ] -> send "AUTHENTICATE" [ "DH-BLOWFISH" ] >> cont
+            [ nick, "ACK" ] -> send "AUTHENTICATE" [ auth proto    ] >> cont
             _               -> liftIO exitFailure
 
     handle cont cmd@(command -> "AUTHENTICATE") = do
@@ -43,3 +43,7 @@ saslAuth proto username password cfg = do
     handle cont (command -> "904") = liftIO exitFailure
     handle cont (command -> "905") = liftIO exitFailure
     handle cont _                  = cont
+
+auth :: SaslType -> ByteString
+auth Plain      = "PLAIN"
+auth DhBlowfish = "DH-BLOWFISH"
