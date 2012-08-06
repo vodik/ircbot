@@ -4,6 +4,7 @@ module Bot.Sasl (authenticate) where
 
 import Control.Arrow (first)
 import Control.Applicative
+import Control.Monad
 import Data.Bits
 import Data.ByteString.Char8 (ByteString)
 import Data.List (unfoldr)
@@ -75,7 +76,7 @@ authenticate user pass input = case readChallenge input of
     Right Plain -> return . Right . Base64.encode $ runPut plain
     Right right ->          Right . Base64.encode <$> doChallenge user pass right
   where
-    plain = putNullString user >> putNullString user >> putNullString pass
+    plain = replicateM_ 2 (putNullString user) >> putNullString pass
 
 powMod :: Integral a => a -> a -> a -> a
 powMod _ 0 _    = 1
