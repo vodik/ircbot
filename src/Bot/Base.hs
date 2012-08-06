@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving #-}
 
 module Bot.Base where
 
@@ -16,12 +16,31 @@ import qualified Network.IRC.Commands as IRC
 
 type Authenticator = BotConfig -> Bot ()
 
+data ChanData = Chan ByteString | Priv ByteString ByteString
+             deriving (Show)
+
+instance Monoid ChanData where
+    mempty = Chan mempty
+    mappend (Chan c1   ) (Chan c2   ) = Chan (c1 <.> c2)
+    mappend (Chan c1   ) (Priv c2 p2) = Priv (c2 <.> c1) p2
+    mappend (Priv c1 p1) (Chan c2   ) = Priv (c1 <.> c2) p1
+    mappend (Priv c1 p1) (Priv c2 p2) = Priv (c1 <.> c2) (p1 <.> p2)
+
+(<.>) :: ByteString -> ByteString -> ByteString
+(<.>) a  "" = a
+(<.>) "" b  = b
+(<.>) a  b  = a <> "," <> b
+
+channels :: [ByteString] -> ChanData
+channels = mconcat . map Chan
+
 data BotConfig = BotConfig
     { ircNick     :: !ByteString
     , ircIdent    :: !ByteString
     , ircRealName :: !ByteString
     , ircHost     :: !String
     , ircPort     :: !Int
+    , ircChannels :: ChanData
     , ircAuth     :: Maybe Authenticator
     }
 
@@ -89,8 +108,9 @@ nick = write . IRC.nick
 user :: MonadIRC m => ByteString -> ByteString -> ByteString -> ByteString -> m ()
 user u h s r = write $ IRC.user u h s r
 
-joinChan :: MonadIRC m => ByteString -> m ()
-joinChan = write . IRC.joinChan
+joinChan :: MonadIRC m => ChanData -> m ()
+joinChan (Chan c  ) = write $ IRC.joinChan c Nothing
+joinChan (Priv c p) = write $ IRC.joinChan c (Just p)
 
 partChan :: MonadIRC m => ByteString -> Maybe ByteString -> m ()
 partChan c m = write $ IRC.partChan c m

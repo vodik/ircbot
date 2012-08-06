@@ -19,8 +19,8 @@ nick u = mkMessage "NICK" [u]
 user :: UserName -> ServerName -> ServerName -> RealName -> Message
 user u h s r = mkMessage "USER" [u, h, s, r]
 
-joinChan :: Channel -> Message
-joinChan c = mkMessage "JOIN" [c]
+joinChan :: Channel -> Maybe ByteString -> Message
+joinChan c = mkMessage "JOIN" . ([c] <>) . maybe [] return
 
 partChan :: Channel -> Maybe ByteString -> Message
 partChan c = mkMessage "PART" . ([c] <>) . maybe [] return

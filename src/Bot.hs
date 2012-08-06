@@ -39,7 +39,7 @@ withBot cfg irc = do
 
     runBot state $ do
         fromMaybe simpleAuth (ircAuth cfg) cfg
-        joinChan "#vodik" -- TODO: find proper place for this
+        joinChan $ ircChannels cfg
         run sock irc
 
 connectIRC :: BotConfig -> IO Socket
