@@ -16,7 +16,7 @@ runIRC msg writer (IRC a) = runReaderT a $ IRCState msg writer
 whenCommand :: ByteString -> IRC () -> IRC ()
 whenCommand cmd f = command <$> asks ircMessage >>= flip when f . (cmd ==)
 
-infix 0 -->
+infixr 0 -->
 
 (-->) :: ByteString -> IRC () -> IRC ()
 (-->) = whenCommand

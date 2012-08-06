@@ -34,10 +34,10 @@ iface state = whenNickPrefix $ \nick _ _ -> do
 whois :: IORef State -> IRC ()
 whois state = whenServerPrefix $ \_ -> do
     conts <- readState state
+    nick  <- argAt 1
     unless (M.null conts) $ do
-        nick <- argAt 1
-        "330" --> runWhen (M.lookup nick conts)
-        "318" --> writeState state (M.delete nick conts)
+        "330" --> runWhen $ M.lookup nick conts
+        "318" --> writeState state $ M.delete nick conts
 
 register :: ByteString -> IRC ()
 register nick = do
