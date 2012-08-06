@@ -28,14 +28,14 @@ data Challenge = Plain
 
 readChallenge :: ByteString -> Either String Challenge
 readChallenge "+"   = Right Plain
-readChallenge input = Base64.decode input >>= runGet get
+readChallenge input = Base64.decode input >>= runGet challenge
   where
-    get = do
+    challenge = do
         n <- fi <$> getWord16be
         Challenge n <$> getInteger n  -- read the prime number
-                    <*> get'          -- read the generator
-                    <*> get'          -- read the public key
-    get' = fi <$> getWord16be >>= getInteger
+                    <*> get           -- read the generator
+                    <*> get           -- read the public key
+    get = fi <$> getWord16be >>= getInteger
 
 getInteger :: Int -> Get Integer
 getInteger size = fromBytes <$> sequence [ getWord8 | _ <- [ 1 .. size ] ]
@@ -73,7 +73,7 @@ authenticate :: Username -> Password -> ByteString -> IO (Either String ByteStri
 authenticate user pass input = case readChallenge input of
     Left  left  -> return $ Left left
     Right Plain -> return . Right . Base64.encode $ runPut plain
-    Right right -> Right . Base64.encode <$> doChallenge user pass right
+    Right right ->          Right . Base64.encode <$> doChallenge user pass right
   where
     plain = putNullString user >> putNullString user >> putNullString pass
 
