@@ -25,7 +25,7 @@ registry db = mkModule "Admin" [ iface, whois ] (newIORef M.empty)
 iface :: IORef State -> IRC ()
 iface state = whenNickPrefix $ \nick _ _ -> do
     conts <- readState state
-    when (M.member nick conts) . bangCommands $ cmds conts nick
+    unless (M.member nick conts) . bangCommands $ cmds conts nick
   where
     cmds conts nick "@register" _ = do
         send "WHOIS" [ nick ]
