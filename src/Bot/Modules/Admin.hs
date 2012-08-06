@@ -30,6 +30,7 @@ iface state = whenNickPrefix $ \nick _ _ -> do
     cmds conts nick "@register" _ = do
         send "WHOIS" [ nick ]
         writeState state $ M.insert nick (register nick) conts
+    cmds _ _ _ _ = return ()
 
 whois :: IORef State -> IRC ()
 whois state = whenServerPrefix $ \_ -> do
