@@ -30,14 +30,13 @@ startDB = DB.connectSqlite3
 commands :: Module
 commands = mkModule_ "commands" [cmds]
   where
-    cmds = "PRIVMSG" --> do
-        msg <- asks ircMessage
-        case parameters msg !! 1 of
+    cmds = bangCommands $ \x _ ->
+        case x of
             "@test"   -> reply "test yourself"
             "@source" -> reply "https://github.com/vodik/ircbot"
             "@delay"  -> reply "will wait!" >> wait 10 >> reply "delayed reply!"
             _         -> return ()
-    wait = io . threadDelay . (1000000 *)
+    wait = liftIO . threadDelay . (1000000 *)
 
 ----------------------------------------------------------------------------------------------
 
@@ -60,8 +59,3 @@ botConfig config =
   where
     username = undefined
     password = undefined
-
-----------------------------------------------------------------------------------------------
-
-io :: MonadIO m => IO a -> m a
-io = liftIO

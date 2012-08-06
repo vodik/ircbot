@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Bot.IRC where
 
 import Control.Applicative
@@ -29,6 +31,11 @@ getSender = do --asks sender
             Just (NickPrefix n _ _) -> Just n
             _                       -> Nothing
 
+bangCommands :: (ByteString -> [ByteString] -> IRC ()) -> IRC ()
+bangCommands f = "PRIVMSG" --> do
+    (x : xs) <- B8.words <$> argAt 1
+    when (B8.head x == '@') $ f x xs
+
 withSender :: (Channel -> IRC ()) -> IRC ()
 withSender f = getSender >>= flip whenJust f
 
@@ -51,6 +58,15 @@ whenServerPrefix f = do
     case prefix of
         Just (ServerPrefix s) -> f s
         _                     -> return ()
+
+args :: IRC [ByteString]
+args = asks $ parameters . ircMessage
+
+slice :: Int -> Int -> IRC [ByteString]
+slice a b = drop a . take b <$> args
+
+argAt :: Int -> IRC ByteString
+argAt a = (!! a) <$> args
 
 whenJust :: Monad m => Maybe a -> (a -> m ()) -> m ()
 whenJust m f = maybe (return ()) f m
