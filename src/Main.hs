@@ -33,9 +33,10 @@ commands = mkModule_ "commands" [cmds]
     cmds = "PRIVMSG" --> do
         msg <- asks ircMessage
         case parameters msg !! 1 of
-            "@test"  -> reply "test yourself"
-            "@delay" -> reply "will wait!" >> wait 10 >> reply "delayed reply!"
-            _        -> return ()
+            "@test"   -> reply "test yourself"
+            "@source" -> reply "https://github.com/vodik/ircbot"
+            "@delay"  -> reply "will wait!" >> wait 10 >> reply "delayed reply!"
+            _         -> return ()
     wait = io . threadDelay . (1000000 *)
 
 ----------------------------------------------------------------------------------------------
