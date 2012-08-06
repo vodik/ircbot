@@ -32,7 +32,7 @@ instance Monoid ChanData where
 (<.>) a  b  = a <> "," <> b
 
 channels :: [ByteString] -> ChanData
-channels = mconcat . map Chan
+channels = mconcat . fmap Chan
 
 data BotConfig = BotConfig
     { ircNick     :: !ByteString
