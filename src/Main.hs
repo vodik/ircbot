@@ -63,7 +63,7 @@ onMode bans = do
 
 main :: IO ()
 main = do
-    cfg  <- botConfig =<< C.load [ Optional "ircbot.cfg" ]
+    cfg  <- botConfig =<< C.load [ Optional "$(XDG_CONFIG_HOME)/ircbot.cfg" ]
     list <- newMVar M.empty
     withBot_ cfg startBot $ do
         "332"  --> argAt 1 >>= \chan -> write $ IRC.mkMessage "MODE" [ chan, "+b" ]
@@ -75,9 +75,15 @@ main = do
 
 botConfig :: Config -> IO BotConfig
 botConfig cfg = do
-    user <- C.lookup cfg "sasl.user"
-    pass <- C.lookup cfg "sasl.pass"
+    nick  <- C.lookupDefault (ircNick     freenodeConfig) cfg "nick"
+    ident <- C.lookupDefault (ircIdent    freenodeConfig) cfg "ident"
+    name  <- C.lookupDefault (ircRealName freenodeConfig) cfg "realname"
+    user  <- C.lookup cfg "sasl.user"
+    pass  <- C.lookup cfg "sasl.pass"
+
     return freenodeConfig
-        { ircNick = "beemo"
-        , ircAuth = liftA2 (saslAuth DhBlowfish) user pass
+        { ircNick     = nick
+        , ircIdent    = ident
+        , ircRealName = name
+        , ircAuth     = liftA2 (saslAuth DhBlowfish) user pass
         }
