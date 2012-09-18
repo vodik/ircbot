@@ -74,8 +74,8 @@ main = do
 
 botConfig :: Config -> IO BotConfig
 botConfig cfg = do
-    username <- C.require cfg "username"
-    password <- C.require cfg "password"
+    username <- C.require cfg "sasl.user"
+    password <- C.require cfg "sasl.pass"
     return freenodeConfig
         { ircNick = "beemo"
         , ircAuth = Just $ saslAuth DhBlowfish username password
