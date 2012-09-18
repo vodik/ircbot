@@ -63,7 +63,7 @@ args :: IRC [ByteString]
 args = asks $ parameters . ircMessage
 
 slice :: Int -> Int -> IRC [ByteString]
-slice a b = drop a . take b <$> args
+slice a b = take b . drop a <$> args
 
 argAt :: Int -> IRC ByteString
 argAt a = (!! a) <$> args

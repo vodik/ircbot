@@ -95,7 +95,7 @@ chunk = unfoldr g . B.unpack
     g [] = Nothing
     g xs = Just . first fromBytes $ splitAt 8 xs
 
-fromBytes :: (Integral a, Bits b) => [a] -> b
+fromBytes :: (Num a, Integral a, Num b, Bits b) => [a] -> b
 fromBytes = foldl (\a x -> a `shiftL` 8 .|. fi x) 0
 
 fi :: (Integral a, Num b) => a -> b

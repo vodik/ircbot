@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Bot
-    ( withBot
+    ( withBot, withBot_
     , module Bot.Base
     , module Bot.IRC
     ) where
@@ -23,8 +23,8 @@ import qualified Data.ByteString.Char8 as B8
 import Bot.Base
 import Bot.IRC
 
-withBot :: BotConfig -> IRC () -> IO ()
-withBot cfg irc = do
+startBot :: BotConfig -> (Socket -> Int -> Bot ()) -> IO ()
+startBot cfg starter = do
     sock <- connectIRC cfg
 
     let writer = liftIO . sendMessage sock
@@ -32,15 +32,17 @@ withBot cfg irc = do
             block <- recv sock 65536
             when (B8.null block) $ error "Socket closed"
             return block
-
-    -- env   <- Environment (ircNick cfg) <$> getCurrentTime
-    -- state <- BotState writer messageParser reader <$> newIORef env
-    let state = BotState writer messageParser reader
+        state = BotState writer messageParser reader
 
     runBot state $ do
         fromMaybe simpleAuth (ircAuth cfg) cfg
-        joinChan $ ircChannels cfg
-        run sock irc
+        starter sock $ ircRate cfg
+
+withBot :: BotConfig -> Bot a -> (a -> IRC ()) -> IO ()
+withBot cfg start irc = startBot cfg $ \sock rate -> start >>= run sock rate . irc
+
+withBot_ :: BotConfig -> Bot () -> IRC () -> IO ()
+withBot_ cfg start irc = startBot cfg $ \sock rate -> start >> run sock rate irc
 
 connectIRC :: BotConfig -> IO Socket
 connectIRC cfg = notify $ do
@@ -55,9 +57,9 @@ connectIRC cfg = notify $ do
     notify = bracket_ (putStr "Connecting... " >> hFlush stdout)
                       (putStrLn "done")
 
-run :: Socket -> IRC () -> Bot ()
-run sock irc = do
-    writer <- liftIO $ mkWriter sock
+run :: Socket -> Int -> IRC () -> Bot ()
+run sock rate irc = do
+    writer <- liftIO $ mkWriter sock rate
 
     forever $ do
         msg <- parse
@@ -67,10 +69,10 @@ run sock irc = do
             "ERROR" -> liftIO $ putStrLn "ERROR!!!" >> exitFailure
             _       -> void . liftIO . forkIO $ runIRC msg writer irc
 
-mkWriter :: Socket -> IO (Message -> IO ())
-mkWriter sock = do
+mkWriter :: Socket -> Int -> IO (Message -> IO ())
+mkWriter sock rate = do
     chan <- newChan
-    forkIO . forever $ readChan chan >>= sendMessage sock
+    forkIO . forever $ readChan chan >>= sendMessage sock >> threadDelay (rate * 1000000)
     return $ writeChan chan
 
 sendMessage :: Socket -> Message -> IO ()

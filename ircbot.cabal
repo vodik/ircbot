@@ -15,6 +15,7 @@ Executable bot
     mtl -any,
     transformers -any,
     network -any,
+    directory -any,
     time -any,
     bytestring -any,
     base64-bytestring -any,
@@ -23,5 +24,6 @@ Executable bot
     Crypto -any,
     entropy -any,
     cereal -any,
+    configurator -any,
     HDBC -any,
     HDBC-sqlite3 -any

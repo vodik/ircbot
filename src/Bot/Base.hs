@@ -40,8 +40,8 @@ data BotConfig = BotConfig
     , ircRealName :: !ByteString
     , ircHost     :: !String
     , ircPort     :: !Int
-    , ircChannels :: ChanData
     , ircAuth     :: Maybe Authenticator
+    , ircRate     :: !Int
     }
 
 -- data Environment = Environment
@@ -123,3 +123,14 @@ privmsg c m = write $ IRC.privmsg c m
 colorize :: Color -> IO c -> IO c
 colorize c = bracket_ (setSGR [ SetColor Foreground Dull c ])
                       (setSGR [ Reset ])
+
+freenodeConfig :: BotConfig
+freenodeConfig = BotConfig
+    { ircNick     = "ircBot"
+    , ircIdent    = "bot"
+    , ircRealName = "ircBot"
+    , ircHost     = "irc.freenode.org"
+    , ircPort     = 6667
+    , ircAuth     = Nothing
+    , ircRate     = 1
+    }

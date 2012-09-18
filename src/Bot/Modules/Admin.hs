@@ -20,7 +20,7 @@ import Bot.Modules
 type State = Map ByteString (IRC ())
 
 registry :: DB.Connection -> Module
-registry db = mkModule "Admin" [ iface, whois ] (newIORef M.empty)
+registry db = mkModule "Admin" [ iface, whois ] (liftIO $ newIORef M.empty)
 
 iface :: IORef State -> IRC ()
 iface state = whenNickPrefix $ \nick _ _ -> do
