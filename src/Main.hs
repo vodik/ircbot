@@ -3,6 +3,7 @@
 module Main where
 
 import Prelude hiding (catch)
+import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Exception
 import Control.Monad.Reader
@@ -62,7 +63,7 @@ onMode bans = do
 
 main :: IO ()
 main = do
-    cfg  <- botConfig =<< C.load [ Required "ircbot.cfg" ]
+    cfg  <- botConfig =<< C.load [ Optional "ircbot.cfg" ]
     list <- newMVar M.empty
     withBot_ cfg startBot $ do
         "332"  --> argAt 1 >>= \chan -> write $ IRC.mkMessage "MODE" [ chan, "+b" ]
@@ -74,9 +75,9 @@ main = do
 
 botConfig :: Config -> IO BotConfig
 botConfig cfg = do
-    username <- C.require cfg "sasl.user"
-    password <- C.require cfg "sasl.pass"
+    user <- C.lookup cfg "sasl.user"
+    pass <- C.lookup cfg "sasl.pass"
     return freenodeConfig
         { ircNick = "beemo"
-        , ircAuth = Just $ saslAuth DhBlowfish username password
+        , ircAuth = liftA2 (saslAuth DhBlowfish) user pass
         }
