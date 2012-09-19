@@ -58,15 +58,15 @@ onMode bans = do
             Nothing   -> return ()
 
     handleBan chan ban = do
-        write $ IRC.mkMessage "MODE" [ chan, "-b", ban ]
-        write $ IRC.mkMessage "MODE" [ chan, "+b", ban ]
+        send "MODE" [ chan, "-b", ban ]
+        send "MODE" [ chan, "+b", ban ]
 
 main :: IO ()
 main = do
     cfg  <- botConfig =<< C.load [ Optional "$(XDG_CONFIG_HOME)/ircbot.cfg" ]
     list <- newMVar M.empty
     withBot_ cfg startBot $ do
-        "332"  --> argAt 1 >>= \chan -> write $ IRC.mkMessage "MODE" [ chan, "+b" ]
+        "332"  --> argAt 1 >>= \chan -> send "MODE" [ chan, "+b" ]
         "367"  --> onBanMessage list
         "368"  --> argAt 1 >>= \chan -> privmsg "vodik" ("ban list for " <> chan <> " loaded")
         "MODE" --> onMode list
@@ -81,9 +81,8 @@ botConfig cfg = do
     user  <- C.lookup cfg "sasl.user"
     pass  <- C.lookup cfg "sasl.pass"
 
-    return freenodeConfig
-        { ircNick     = nick
-        , ircIdent    = ident
-        , ircRealName = name
-        , ircAuth     = liftA2 (saslAuth DhBlowfish) user pass
-        }
+    return freenodeConfig { ircNick     = nick
+                          , ircIdent    = ident
+                          , ircRealName = name
+                          , ircAuth     = liftA2 (saslAuth DhBlowfish) user pass
+                          }
